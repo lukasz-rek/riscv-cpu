@@ -15,6 +15,9 @@ module adder_tb;
 
     // Test cases
     initial begin
+
+        $dumpfile("logs/waveform.fst");
+        $dumpvars(0, adder_tb);
         // Initialize inputs
         a = 0;
         b = 0;
