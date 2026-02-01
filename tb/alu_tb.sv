@@ -18,7 +18,8 @@ module alu_tb;
     );
 
     initial begin
-        $dumpfile("waveform.fst");
+        //TODO: these are AI made tests, improve them once I got basic pipeline going
+        $dumpfile("logs/waveform.fst");
         $dumpvars(0, alu_tb);
 
         // Test 1: 1 + 1 = 2
