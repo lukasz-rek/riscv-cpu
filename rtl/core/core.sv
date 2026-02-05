@@ -42,6 +42,7 @@ module core (
 
   */
 
+  // General control signals
   logic pc_write;
   branch_cond_t branch_condition;
   logic mem_write;
@@ -50,9 +51,42 @@ module core (
   logic pc_save;
   logic [31:0] load_mask;
   logic load_sext;
-  alu_op_t alu_op;
   alu_src_t alu_src;
 
+
+  // ALU signals and instance
+  logic [31:0] alu_op_a;
+  logic [31:0] alu_op_b;
+  alu_op_t alu_op;
+  logic [31:0] alu_result;
+  logic alu_zero;
+  alu alu_inst (
+      .a(alu_op_a),
+      .b(alu_op_b),
+      .alu_op(alu_op),
+      .result(alu_result),
+      .zero(alu_zero)
+  );
+
+  // Register file signals and instance
+  logic [4:0] rs1_addr;
+  logic [4:0] rs2_addr;
+  logic [31:0] rs1_data;
+  logic [31:0] rs2_data;
+  logic rs_wr_en;
+  logic [4:0] rs_rd_addr;
+  logic [31:0] rs_rd_data;
+  register_file regfile_inst (
+      .clk(clk),
+      .rst_n(rst_n),
+      .rs1_addr(rs1_addr),
+      .rs2_addr(rs2_addr),
+      .rs1_data(rs1_data),
+      .rs2_data(rs2_data),
+      .wr_en(rs_wr_en),
+      .rd_addr(rs_rd_addr),
+      .rd_data(rs_rd_data)
+  );
 
   // 1st: Fetch
   assign instruction = mem_rd_data1;
@@ -69,29 +103,38 @@ module core (
 
   always_comb begin
     // Defaults:
+    pc_write  = 0;
     mem_write = 0;
-    mem_load = 0;
-    
+    reg_write = 0;
+    mem_load  = 0;
+    pc_save   = 0;
+    load_mask = 32'b0;
+    load_sext = 0;
+
     case (opcode)
       // LUI
       OP_LUI: begin
         reg_write = 1;
-        // TODO: read imm
+        imm = {{12{instruction[31]}}, instruction[31:12]};
       end
       // AUIPC
       OP_ADD_UPPER: begin
         pc_write = 1;
-        pc_save  = 1;
-        // TODO: read imm
+        pc_save = 1;
+        imm = {{12{instruction[31]}}, instruction[31:12]};
       end
       // JAL
       OP_JAL: begin
         pc_write = 1;
-        alu_op   = ALU_ADD;
-        alu_src  = ALU_SRC_PC;
+        alu_op = ALU_ADD;
+        alu_src = ALU_SRC_PC;
+        imm = {
+          {12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:21], 1'b0
+        };
       end
       // All branches
       OP_BRANCH: begin
+        imm = {{20{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
         case (funct3)
           3'b000: branch_condition = BEQ;
           3'b001: branch_condition = BNE;
@@ -103,10 +146,11 @@ module core (
       end
       // JALR
       OP_JALR: begin
-        pc_write  = 1;
+        pc_write = 1;
         reg_write = 1;
-        pc_save   = 1;
-        alu_src   = ALU_SRC_PC_IMM;
+        pc_save = 1;
+        alu_src = ALU_SRC_PC_IMM;
+        imm = {{20{instruction[31]}}, instruction[31:20]};
         // add immediate + reg, save ret
       end
       OP_MEM_LOAD: begin
@@ -114,11 +158,11 @@ module core (
         alu_src  = ALU_SRC_IMM;
         // Loading bytes
         if ((funct3 == 3'b000) || (funct3 == 3'b100)) begin
-          load_mask = {24'b0, 8'b1};
+          load_mask = {24'b0, 8'hFF};
         end
         // Loading halfwords
         if ((funct3 == 3'b001) || (funct3 == 3'b101)) begin
-          load_mask = {16'b0, 16'b1};
+          load_mask = {16'b0, 16'hFFFF};
         end
         // Needing sext
         if ((funct3 == 3'b100) || (funct3 == 3'b101)) begin
@@ -129,8 +173,11 @@ module core (
         reg_write = 1;
         if ((funct3 == 3'b001) || (funct3 == 3'b101)) begin
           alu_src = ALU_SRC_SHAMT;
-        end else alu_src = ALU_SRC_IMM;
-        /// TODO: read imm
+          imm = {{27{rs2[4]}}, rs2[3:0]};
+        end else begin
+          alu_src = ALU_SRC_IMM;
+          imm = {{20{instruction[31]}}, instruction[31:20]};
+        end
         case (funct3)
           3'b000: alu_op = ALU_ADD;
           3'b010: alu_op = ALU_SLT;
@@ -145,13 +192,26 @@ module core (
       end
       OP_MEM_STR: begin
         mem_write = 1;
-
+        alu_op = ALU_ADD;
+        alu_src = ALU_SRC_IMM;
+        imm = {{20{instruction[31]}}, instruction[31:25], instruction[11:7]};
       end
       OP_I_REG2: begin
-
+        reg_write = 1;
+        alu_src   = ALU_SRC_RS2;
+        case (funct3)
+          3'b000: alu_op = (funct7 == 7'b0100000) ? ALU_SUB : ALU_ADD;
+          3'b001: alu_op = ALU_SLL;
+          3'b010: alu_op = ALU_SLT;
+          3'b011: alu_op = ALU_SLTU;
+          3'b100: alu_op = ALU_XOR;
+          3'b101: alu_op = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
+          3'b110: alu_op = ALU_OR;
+          3'b111: alu_op = ALU_AND;
+        endcase
       end
     endcase
-    
+
   end
 
   // 3rd Execute
@@ -167,7 +227,7 @@ module core (
       pc <= 32'h0;
     end else begin
       pc <= next_pc;
-      
+
     end
   end
 
