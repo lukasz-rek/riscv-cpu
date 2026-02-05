@@ -14,13 +14,14 @@ module core (
   logic [31:0] instruction;
   logic [31:0] pc, next_pc;
 
-  logic [ 6:0] opcode;
-  logic [ 4:0] rd;
-  logic [ 4:0] rs1;
-  logic [ 4:0] rs2;
-  logic [ 2:0] funct3;
-  logic [ 6:0] funct7;
-  logic [20:0] imm;
+  logic branch_taken;
+  logic [6:0] opcode;
+  logic [4:0] rd;
+  logic [4:0] rs1;
+  logic [4:0] rs2;
+  logic [2:0] funct3;
+  logic [6:0] funct7;
+  logic [31:0] imm;
 
   // Control signals
   /*
@@ -54,10 +55,6 @@ module core (
   assign rd = instruction[11:7];
   assign rs1 = instruction[19:15];
   assign rs2 = instruction[24:20];
-
-  // General control signals
-  logic [31:0] mem_mask;
-
 
   // ALU signals and instance
   logic [31:0] alu_op_a;
@@ -94,24 +91,30 @@ module core (
   // Immediate assigned based on instr type
 
   always_comb begin
-    rs_wr_en  = 0;
+    // Defaults
+    rs_wr_en = 0;
     mem_wr_en = 0;
+    branch_taken = 0;
+    alu_op_b = 32'b0;
 
-    alu_op_a  = rs1_data;
-    next_pc   = pc + 4;
+
+    alu_op_a = rs1_data;
+    next_pc = pc + 4;
     case (opcode)
       OP_B: begin
         imm = {{20{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0};
         alu_op_b = rs2_data;
         case (funct3)
-          BNE, BEQ:   alu_op = ALU_SUB;
-          BLT, BGT:   alu_op = ALU_SLT;
-          BLTU, BGTU: alu_op = ALU_SLTU;
+          BNE, BEQ: alu_op = ALU_SUB;
+          BLT, BGE: alu_op = ALU_SLT;
+          BLTU, BGEU: alu_op = ALU_SLTU;
+          default: ;
         endcase
         // For operations set above, these results mean branching
         case (funct3)
-          BNE, BLT, BLTU: branch_taken = (alu_result != 32'b0) ? 1'b1 : 0'b1;
-          BEQ, BGT, BGTU: branch_taken = (alu_result == 32'b0) ? 1'b1 : 0'b1;
+          BNE, BLT, BLTU: branch_taken = !alu_zero;
+          BEQ, BGE, BGEU: branch_taken = alu_zero;
+          default: ;
         endcase
         if (branch_taken == 1'b1) begin
           next_pc = pc + imm;
@@ -133,23 +136,25 @@ module core (
         mem_wr_addr = alu_result;
         case (funct3)
           // byte, halfword, word
-          3'b000: mem_byte_en = 4'b0001;
-          3'b001: mem_byte_en = 4'b0011;
-          3'b010: mem_byte_en = 4'b1111;
+          3'b000:  mem_byte_en = 4'b0001;
+          3'b001:  mem_byte_en = 4'b0011;
+          3'b010:  mem_byte_en = 4'b1111;
+          default: ;
         endcase
         mem_wr_data = rs2_data;
       end
       OP_R: begin
         alu_op_b = rs2_data;
         case (funct3)
-          3'b000: alu_op = (funct7 == 7'b0100000) ? ALU_SUB : ALU_ADD;
-          3'b001: alu_op = ALU_SLL;
-          3'b010: alu_op = ALU_SLT;
-          3'b011: alu_op = ALU_SLTU;
-          3'b100: alu_op = ALU_XOR;
-          3'b101: alu_op = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
-          3'b110: alu_op = ALU_OR;
-          3'b111: alu_op = ALU_AND;
+          3'b000:  alu_op = (funct7 == 7'b0100000) ? ALU_SUB : ALU_ADD;
+          3'b001:  alu_op = ALU_SLL;
+          3'b010:  alu_op = ALU_SLT;
+          3'b011:  alu_op = ALU_SLTU;
+          3'b100:  alu_op = ALU_XOR;
+          3'b101:  alu_op = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
+          3'b110:  alu_op = ALU_OR;
+          3'b111:  alu_op = ALU_AND;
+          default: ;
         endcase
         rs_wr_en   = 1;
         rs_wr_data = alu_result;
@@ -161,11 +166,12 @@ module core (
           OP_I_MEM: begin
             mem_addr2 = rs1_data + imm;
             case (funct3)
-              3'b000: rs_wr_data = {{24{mem_rd_data2[7]}}, mem_rd_data2[7:0]};
-              3'b001: rs_wr_data = {{16{mem_rd_data2[15]}}, mem_rd_data2[15:0]};
-              3'b010: rs_wr_data = mem_rd_data2;
-              3'b100: rs_wr_data = {24'b0, mem_rd_data2[7:0]};
-              3'b101: rs_wr_data = {16'b0, mem_rd_data2[15:0]};
+              3'b000:  rs_wr_data = {{24{mem_rd_data2[7]}}, mem_rd_data2[7:0]};
+              3'b001:  rs_wr_data = {{16{mem_rd_data2[15]}}, mem_rd_data2[15:0]};
+              3'b010:  rs_wr_data = mem_rd_data2;
+              3'b100:  rs_wr_data = {24'b0, mem_rd_data2[7:0]};
+              3'b101:  rs_wr_data = {16'b0, mem_rd_data2[15:0]};
+              default: ;
             endcase
           end
           OP_JALR: begin
@@ -174,20 +180,23 @@ module core (
           end
           OP_I_ALU: begin
             rs_wr_data = alu_result;
+            alu_op_b   = imm;
             case (funct3)
-              3'b000: alu_op = ALU_ADD;
-              3'b010: alu_op = ALU_SLT;
-              3'b011: alu_op = ALU_SLTU;
-              3'b100: alu_op = ALU_XOR;
-              3'b110: alu_op = ALU_OR;
-              3'b111: alu_op = ALU_AND;
-              3'b001: alu_op = ALU_SLL;
+              3'b000:  alu_op = ALU_ADD;
+              3'b010:  alu_op = ALU_SLT;
+              3'b011:  alu_op = ALU_SLTU;
+              3'b100:  alu_op = ALU_XOR;
+              3'b110:  alu_op = ALU_OR;
+              3'b111:  alu_op = ALU_AND;
+              3'b001:  alu_op = ALU_SLL;
               3'b101: begin
                 alu_op   = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
-                alu_op_b = rs2;  // SHAMT taken directly
+                alu_op_b = {27'b0, rs2};  // SHAMT taken directly
               end
+              default: ;
             endcase
           end
+          default: ;
         endcase
       end
       OP_LUI, OP_AUI: begin
@@ -195,6 +204,7 @@ module core (
         rs_wr_en = 1;
         rs_wr_data = (opcode == OP_LUI) ? imm : imm + pc;
       end
+      default: ;
     endcase
   end
 
