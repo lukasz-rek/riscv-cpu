@@ -4,7 +4,7 @@ TB_FILES := $(wildcard tb/*.sv)
 VERILATOR_FLAGS = -Wall -Wno-fatal --trace-fst --trace
 TOP_MODULE_NAME = top
 
-build: 
+build: code
 	@echo "Compiling all modules..."
 	
 	@echo "===== Found rtl source files: "
@@ -22,6 +22,9 @@ run:
 	@echo "Running simulation..."
 	@./build/V$(TOP_MODULE_NAME)_tb
 
+code:
+	@$(MAKE) -C code all
+
 format:
 	@echo "Formating..."
 	verible-verilog-format --inplace $(RTL_FILES)
@@ -36,4 +39,4 @@ clean:
 	@rm -r build
 	@echo "Cleaned"
 
-.PHONY: build clean run lint
+.PHONY: build clean run lint code
