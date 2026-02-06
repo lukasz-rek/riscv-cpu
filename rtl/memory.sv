@@ -1,7 +1,7 @@
 module memory #(
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 32,
-    parameter int MEM_SIZE   = 65536 * 4  // in bytes, 256 KB
+    parameter int MEM_SIZE   = 16384  // in bytes, 256 KB
 ) (
     input  logic                  clk,
     // 2 ports are needed so both instructions and 

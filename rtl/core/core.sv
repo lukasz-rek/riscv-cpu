@@ -9,10 +9,14 @@ module core (
     output logic [31:0] mem_wr_addr,
     input  logic [31:0] mem_rd_data1,
     input  logic [31:0] mem_rd_data2,
-    output logic [ 3:0] mem_byte_en
+    output logic [ 3:0] mem_byte_en,
+    
+    // Debug signals
+    output logic [31:0] pc,           // Current program counter
+    output logic [31:0] alu_result    // ALU result
 );
   logic [31:0] instruction;
-  logic [31:0] pc, next_pc;
+  logic [31:0] next_pc;
 
   logic branch_taken;
   logic [6:0] opcode;
@@ -60,7 +64,6 @@ module core (
   logic [31:0] alu_op_a;
   logic [31:0] alu_op_b;
   alu_op_t alu_op;
-  logic [31:0] alu_result;
   logic alu_zero;
   alu alu_inst (
       .a(alu_op_a),
