@@ -2,3 +2,7 @@ build/
 code/build/
 logs/
 *.fst
+*.jou
+*.log
+fpga_build/
+fpga_reports/
