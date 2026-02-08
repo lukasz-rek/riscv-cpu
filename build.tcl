@@ -20,8 +20,6 @@ set proj_file "${proj_dir}/${design_name}.xpr"
 if {[file exists $proj_file]} {
     puts "INFO: Opening existing project..."
     open_project $proj_file
-
-    # Reset previous runs so we re-synth/impl from scratch
     reset_run synth_1
 } else {
     puts "INFO: Creating new project..."
@@ -66,6 +64,10 @@ if {[file exists $proj_file]} {
     connect_bd_net [get_bd_pins zynq_ps/pl_resetn0]    [get_bd_pins ps_reset/ext_reset_in]
     connect_bd_net [get_bd_pins ps_reset/peripheral_aresetn] [get_bd_pins top_wrapper_0/rst_n]
 
+    # Expose UART TX as external port
+    create_bd_port -dir O uart_tx
+    connect_bd_net [get_bd_pins top_wrapper_0/uart_tx] [get_bd_ports uart_tx]
+
     # Validate and save
     validate_bd_design
     save_bd_design
@@ -80,17 +82,15 @@ if {[file exists $proj_file]} {
     update_compile_order -fileset sources_1
 }
 
-# ── Synthesis (launch_runs handles IP out-of-context synthesis automatically) ──
-launch_runs synth_1 -jobs [expr {max(1, [exec nproc] - 1)}]
+# ── Synthesis (sequential to avoid parallel process hangs) ──
+launch_runs synth_1 -jobs 1
 wait_on_run synth_1
-
-open_run synth_1
-write_checkpoint -force ${output_dir}/post_synth.dcp
-report_utilization -file ${reports_dir}/post_synth_utilization.rpt
-report_timing_summary -file ${reports_dir}/post_synth_timing.rpt
+if {[get_property STATUS [get_runs synth_1]] != "synth_design Complete!"} {
+    error "Synthesis failed — check vivado_proj/riscv_core.runs/synth_1/runme.log"
+}
 
 # ── Implementation ──
-launch_runs impl_1 -to_step write_bitstream -jobs [expr {max(1, [exec nproc] - 1)}]
+launch_runs impl_1 -to_step write_bitstream -jobs 1
 wait_on_run impl_1
 
 open_run impl_1

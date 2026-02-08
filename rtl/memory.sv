@@ -1,7 +1,7 @@
 module memory #(
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 32,
-    parameter int MEM_DEPTH  = 65536,  // 32-bit words → 256KB total
+    parameter int MEM_DEPTH  = 16384,  // 32-bit words → 64KB total
     parameter     INIT_FILE  = ""
 ) (
     input  logic                  clk,

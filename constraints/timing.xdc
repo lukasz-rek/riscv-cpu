@@ -3,3 +3,9 @@
 
 # If you want to overconstrain for benchmarking, uncomment and adjust:
 # create_clock -period 8.000 -name pl_clk0 [get_pins system_i/zynq_ps/inst/pl_clk0]
+
+# UART TX on PMOD pin 0 (H12, Bank 45, LVCMOS33)
+set_property PACKAGE_PIN H12 [get_ports uart_tx]
+set_property IOSTANDARD LVCMOS33 [get_ports uart_tx]
+set_property SLEW SLOW [get_ports uart_tx]
+set_property DRIVE 4 [get_ports uart_tx]

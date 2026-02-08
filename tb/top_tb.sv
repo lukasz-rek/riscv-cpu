@@ -4,10 +4,13 @@ module top_tb;
     logic rst_n;
     logic [31:0] result;
 
+    logic uart_tx_pin;
+
     // Instantiate DUT
     top dut (
         .clk(clk),
-        .rst_n(rst_n)
+        .rst_n(rst_n),
+        .uart_tx(uart_tx_pin)
     );
 
     // Clock generation
@@ -42,12 +45,12 @@ module top_tb;
         // Run until done signal or timeout
         fork
             begin
-                // Wait for done signal (0xDEADBEEF) at byte address 0x80001004
-                // Wraps to word index 1025 in 64K-word BRAM (addr[17:2])
+                // Wait for done signal (0xDEADBEEF) at byte address 0x1004
+                // Word index 1025 in 16K-word BRAM (addr[15:2])
                 wait(dut.bram_mem.mem[1025] == 32'hDEADBEEF);
                 $display("Program completed at time %0t", $time);
 
-                // Check result at word index 1024 (byte address 0x80001000)
+                // Check result at word index 1024 (byte address 0x1000)
                 result = dut.bram_mem.mem[1024];
 
                 $display("Result: %0d (expected: 2)", result);
@@ -58,12 +61,17 @@ module top_tb;
                     $display("TEST FAILED");
                 end
 
+                // Let UART transmit the full message before ending
+                // 14 chars × ~868 clks/bit × 10 bits/char ≈ 122k cycles
+                $display("Waiting for UART transmission...");
+                repeat(150000) @(posedge clk);
+
                 $finish;
             end
 
             begin
-                // Timeout after 30000 cycles (multi-cycle core: 2-3 cycles per instr)
-                repeat(30000) @(posedge clk);
+                // Timeout after 200000 cycles (includes UART transmission time)
+                repeat(200000) @(posedge clk);
                 $display("TIMEOUT - program did not complete");
                 $display("Result: %0d (expected: 2)", result);
                 $finish;
