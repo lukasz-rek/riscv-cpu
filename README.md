@@ -1,4 +1,4 @@
-Just making a riscv cpu for fun!
+Just making a riscv cpu for fun (questionable)!
 
 # Build
 
