@@ -6,3 +6,4 @@ logs/
 *.log
 fpga_build/
 fpga_reports/
+fpga_logs/

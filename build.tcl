@@ -24,7 +24,7 @@ read_verilog -sv [glob -nocomplain ${rtl_dir}/core/*.sv]
 read_xdc ${constr_dir}/timing.xdc
 
 
-synth_design -top $top_module -part $part
+synth_design -top $top_module -part $part -directive PerformanceOptimized -retiming
 
 write_checkpoint -force ${output_dir}/post_synth.dcp
 report_utilization -file ${reports_dir}/post_synth_utilization.rpt
@@ -48,3 +48,10 @@ write_checkpoint -force ${output_dir}/post_route.dcp
 report_utilization -file ${reports_dir}/post_route_utilization.rpt
 report_timing_summary -file ${reports_dir}/post_route_timing.rpt
 report_drc -file ${reports_dir}/drc.rpt
+
+# Move Vivado log/journal files and clockInfo into logs dir
+set logs_dir "./fpga_logs"
+file mkdir $logs_dir
+foreach f [glob -nocomplain vivado*.log vivado*.jou clockInfo.txt] {
+    file rename -force $f ${logs_dir}/[file tail $f]
+}
