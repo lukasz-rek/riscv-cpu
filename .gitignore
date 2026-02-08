@@ -7,3 +7,6 @@ logs/
 fpga_build/
 fpga_reports/
 fpga_logs/
+vivado_proj/
+.srcs/
+.Xil/

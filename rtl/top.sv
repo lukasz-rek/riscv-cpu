@@ -2,11 +2,7 @@ module top #(
     parameter INIT_FILE = ""
 ) (
     input  logic        clk,
-    input  logic        rst_n,
-    // Debug outputs to prevent optimization
-    output logic [31:0] debug_mem_addr1,
-    output logic [31:0] debug_mem_data1,
-    output logic        debug_mem_wr_en
+    input  logic        rst_n
 );
 
   // Memory interface signals
@@ -20,7 +16,7 @@ module top #(
   logic [ 3:0] mem_byte_en;
 
   // Instantiate core
-  core cpu (
+  (* dont_touch = "true" *) core cpu (
       .clk(clk),
       .rst_n(rst_n),
       .mem_addr1(mem_addr1),
@@ -34,7 +30,7 @@ module top #(
   );
 
   // Instantiate memory
-  memory #(
+  (* dont_touch = "true" *) memory #(
       .INIT_FILE(INIT_FILE)
   ) bram_mem (
       .clk(clk),
@@ -47,10 +43,5 @@ module top #(
       .rd_data2(mem_rd_data2),
       .byte_en(mem_byte_en)
   );
-
-  // Connect debug outputs
-  assign debug_mem_addr1 = mem_addr1;
-  assign debug_mem_data1 = mem_rd_data1;
-  assign debug_mem_wr_en = mem_wr_en;
 
 endmodule
