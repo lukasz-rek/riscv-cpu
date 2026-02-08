@@ -34,9 +34,13 @@ lint:
 	@echo "Linting..."
 	@verilator --lint-only $(VERILATOR_FLAGS) $(RTL_FILES) --top-module $(TOP_MODULE_NAME)
 
+wave:
+	@echo "Opening waveform"
+	@gtkwave logs/top_tb.fst
+
 clean:
 	@echo "Cleaning up..."
 	@rm -r build
 	@echo "Cleaned"
 
-.PHONY: build clean run lint code
+.PHONY: build clean run lint code wave

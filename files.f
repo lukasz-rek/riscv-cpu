@@ -6,9 +6,12 @@ rtl/core_pkg.sv
 rtl/core/alu.sv
 rtl/core/register_file.sv
 
+
 rtl/core/core.sv
 
 rtl/memory.sv
+rtl/result_sender.sv
+rtl/uart_tx.sv
 
 rtl/top.sv
 

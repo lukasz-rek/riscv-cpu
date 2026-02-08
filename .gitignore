@@ -2,3 +2,11 @@ build/
 code/build/
 logs/
 *.fst
+*.jou
+*.log
+fpga_build/
+fpga_reports/
+fpga_logs/
+vivado_proj/
+.srcs/
+.Xil/
