@@ -45,40 +45,47 @@ module top #(
       .byte_en(mem_byte_en)
   );
 
-  // ── UART result output ──
-  // Snoop memory write bus to capture result and done flag
-  // Result at byte addr 0x1000 (word 1024), done at 0x1004 (word 1025)
-  localparam RESULT_WORD_ADDR = 32'h0000_1000;
-  localparam DONE_WORD_ADDR   = 32'h0000_1004;
+  // ── UART with TX FIFO ──
+  // Store to UART_ADDR pushes low byte into a 16-entry FIFO.
+  // FIFO drains into uart_tx automatically.
+  localparam UART_ADDR = 32'h0000_1000;
+  localparam FIFO_DEPTH = 16;
+  localparam PTR_W = $clog2(FIFO_DEPTH);
 
-  logic [31:0] result_val;
-  logic [31:0] done_val;
+  logic [7:0] fifo [FIFO_DEPTH];
+  logic [PTR_W:0] wr_ptr, rd_ptr;  // extra bit for full/empty detection
 
+  wire fifo_empty = (wr_ptr == rd_ptr);
+  wire fifo_push  = mem_wr_en && (mem_wr_addr == UART_ADDR);
+
+  // Push into FIFO on CPU write
   always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-      result_val <= '0;
-      done_val   <= '0;
-    end else if (mem_wr_en) begin
-      if (mem_wr_addr == RESULT_WORD_ADDR)
-        result_val <= mem_wr_data;
-      if (mem_wr_addr == DONE_WORD_ADDR)
-        done_val <= mem_wr_data;
+    if (!rst_n)
+      wr_ptr <= '0;
+    else if (fifo_push) begin
+      fifo[wr_ptr[PTR_W-1:0]] <= mem_wr_data[7:0];
+      wr_ptr <= wr_ptr + 1;
     end
   end
 
+  // Pop from FIFO and feed uart_tx
   logic [7:0] tx_data;
   logic       tx_send;
   logic       tx_busy;
 
-  result_sender result_out (
-      .clk(clk),
-      .rst_n(rst_n),
-      .done_val(done_val),
-      .result_val(result_val),
-      .tx_data(tx_data),
-      .tx_send(tx_send),
-      .tx_busy(tx_busy)
-  );
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      rd_ptr  <= '0;
+      tx_send <= 1'b0;
+    end else begin
+      tx_send <= 1'b0;
+      if (!fifo_empty && !tx_busy && !tx_send) begin
+        tx_data <= fifo[rd_ptr[PTR_W-1:0]];
+        tx_send <= 1'b1;
+        rd_ptr  <= rd_ptr + 1;
+      end
+    end
+  end
 
   uart_tx #(
       .CLK_FREQ(95_000_000),

@@ -42,6 +42,9 @@ module uart_tx #(
             shift_reg <= data;
             state     <= START;
             clk_cnt   <= '0;
+            // synthesis translate_off
+            $write("%c", data);
+            // synthesis translate_on
           end
         end
 
