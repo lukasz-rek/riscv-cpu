@@ -26,6 +26,7 @@ module core (
 
   logic [31:0] instruction;
   logic [31:0] pc, next_pc;
+  logic [31:0] cycle_count;
 
   logic branch_taken;
   logic [6:0] opcode;
@@ -241,6 +242,12 @@ module core (
           rs_wr_en = 1;
           rs_wr_data = (opcode == OP_LUI) ? imm : imm + pc;
         end
+        OP_SYSTEM: begin
+            if (funct3 == 3'b010 && rs1_data == 32'b0) begin
+                rs_wr_en = 1;
+                rs_wr_data = cycle_count;
+            end
+        end
         default: ;
       endcase
     end
@@ -252,7 +259,9 @@ module core (
       pc <= 32'h0;
       state <= S_FETCH;
       load_offset <= 2'b0;
+      cycle_count <= 32'b0;
     end else begin
+        cycle_count <= cycle_count + 1;
       case (state)
         S_FETCH: state <= S_EXEC;
         S_EXEC: begin

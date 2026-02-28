@@ -2,6 +2,8 @@ module top_tb;
 
     logic clk;
     logic rst_n;
+    time     completion_time;
+    longint  completion_cycle;
 
     /* verilator lint_off UNUSEDSIGNAL */
     logic uart_tx_pin;
@@ -48,11 +50,13 @@ module top_tb;
             begin
                 // Done flag at byte addr 0x1004 = word index 1025
                 wait(dut.bram_mem.mem[1025] == 32'hDEADBEEF);
-                $display("Program completed at time %0t", $time);
 
+                completion_time  = $time;
+                completion_cycle = dut.cpu.cycle_count;
                 // Wait for UART FIFO to drain and last byte to finish
                 wait(dut.fifo_empty && !dut.tx_busy);
                 repeat(10) @(posedge clk);
+                $display("Program completed at cycle %0d (sim time %0t)", completion_cycle, completion_time);
 
                 $finish;
             end

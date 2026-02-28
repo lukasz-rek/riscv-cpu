@@ -30,10 +30,12 @@ package core_pkg;
     OP_JALR  = 7'b1100111,
     OP_I_ALU = 7'b0010011,
 
+    // CSR stuff
+    OP_SYSTEM = 7'b1110011,
+
     OP_LUI  = 7'b0110111,
     OP_AUI  = 7'b0010111,
-    OP_FENC = 7'b0001111,
-    OP_CALL = 7'b1110011
+    OP_FENC = 7'b0001111
   } opcode_t;
 
   typedef enum logic [2:0] {
