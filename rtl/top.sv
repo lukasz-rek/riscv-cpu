@@ -48,7 +48,7 @@ module top #(
   // ── UART with TX FIFO ──
   // Store to UART_ADDR pushes low byte into a 16-entry FIFO.
   // FIFO drains into uart_tx automatically.
-  localparam UART_ADDR = 32'h0000_1000;
+  localparam UART_ADDR = 32'h000_10000;
   localparam FIFO_DEPTH = 64;
   localparam PTR_W = $clog2(FIFO_DEPTH);
 

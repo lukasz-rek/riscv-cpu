@@ -1,12 +1,25 @@
-CC = gcc 
-CFLAGS = -m32 -O3 -I. -DPERFORMANCE_RUN=1 -DITERATIONS=60000 -DFLAGS_STR=\"-O3\"
+CC      = riscv64-elf-gcc
+OBJCOPY = riscv64-elf-objcopy
+CFLAGS  = -march=rv32i_zicsr -mabi=ilp32 -nostdlib -ffreestanding -O3 \
+          -I. \
+          -DPERFORMANCE_RUN=1 -DITERATIONS=50 -DFLAGS_STR=\"-O3\"
+LDFLAGS = -T ../linker.ld
 
-# Source files
+BUILD_DIR = build
 
-coremark: 
-	$(CC) $(CFLAGS) *.c -o coremark -lm 
+all: $(BUILD_DIR)/coremark.hex
+
+$(BUILD_DIR)/coremark.hex: $(BUILD_DIR)/coremark.elf | $(BUILD_DIR)
+	$(OBJCOPY) -O binary $< $(BUILD_DIR)/coremark.bin
+	hexdump -v -e '1/1 "%02x\n"' $(BUILD_DIR)/coremark.bin > $@
+
+$(BUILD_DIR)/coremark.elf: | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(LDFLAGS) ../start.S *.c -o $@ -lgcc
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
 clean:
-	rm coremark
+	rm -rf $(BUILD_DIR)
 
-.PHONY: clean
+.PHONY: all clean

@@ -9,9 +9,8 @@ SECTIONS {
     }
     
     .rodata : { *(.rodata*) }
-    .data : { *(.data*) }
-    .bss : { *(.bss*) }
-    
-    . = 0x00010000;
-    _stack_top = .;
+    .data : { *(.data*) *(.sdata*) }
+    .bss : { *(.bss*) *(.sbss*) *(COMMON) }
+
+    _stack_top = 0x0000F000;
 }

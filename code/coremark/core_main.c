@@ -20,6 +20,7 @@ Original Author: Shay Gal-on
         This file contains the framework to acquire a block of memory, seed
    initial parameters, tun t he benchmark and report the results.
 */
+#include "core_portme.h"
 #include "coremark.h"
 
 /* Function: iterate
@@ -62,6 +63,7 @@ iterate(void *pres)
 
     for (i = 0; i < iterations; i++)
     {
+        (*(volatile ee_u32 *)0x00010000) = '.';
         crc      = core_bench_list(res, 1);
         res->crc = crcu16(crc, res->crc);
         crc      = core_bench_list(res, -1);
@@ -71,7 +73,7 @@ iterate(void *pres)
     }
     return NULL;
 }
-
+#define DONE_FLAG (*(volatile ee_u32 *)0x00010004)
 #if (SEED_METHOD == SEED_ARG)
 ee_s32 get_seed_args(int i, int argc, char *argv[]);
 #define get_seed(x)    (ee_s16) get_seed_args(x, argc, argv)
@@ -439,4 +441,5 @@ for (i = 0; i < MULTITHREAD; i++)
     portable_fini(&(results[0].port));
 
     return MAIN_RETURN_VAL;
+    DONE_FLAG = 0xDEADBEEF;
 }

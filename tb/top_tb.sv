@@ -23,14 +23,16 @@ module top_tb;
     end
 
     // Byte-to-word loader: hex file is one byte per line (little-endian)
-    logic [7:0] program_bytes [0:4095];
+    logic [7:0] program_bytes [0:32767];
 
     // Test sequence
     initial begin
         // Load program (byte-per-line hex) and assemble into 32-bit words
-        for (int i = 0; i < 4096; i++) program_bytes[i] = 0;
-        $readmemh("code/build/program.hex", program_bytes);
-        for (int i = 0; i < 1024; i++) begin
+        for (int i = 0; i < 32768; i++) program_bytes[i] = 0;
+        // $readmemh("code/build/program.hex", program_bytes);
+        $readmemh("code/coremark/build/coremark.hex", program_bytes);
+
+        for (int i = 0; i < 8192; i++) begin
             dut.bram_mem.mem[i] = {program_bytes[i*4+3], program_bytes[i*4+2],
                                    program_bytes[i*4+1], program_bytes[i*4]};
         end
@@ -49,7 +51,7 @@ module top_tb;
         fork
             begin
                 // Done flag at byte addr 0x1004 = word index 1025
-                wait(dut.bram_mem.mem[1025] == 32'hDEADBEEF);
+                wait(dut.bram_mem.mem[16385] == 32'hDEADBEEF);
 
                 completion_time  = $time;
                 completion_cycle = dut.cpu.cycle_count;
@@ -62,7 +64,7 @@ module top_tb;
             end
 
             begin
-                repeat(500000) @(posedge clk);
+                repeat(500000000000000) @(posedge clk);
                 $display("TIMEOUT - program did not complete");
                 $finish;
             end
@@ -70,9 +72,9 @@ module top_tb;
     end
 
     // Optional: waveform dump
-    initial begin
-        $dumpfile("logs/top_tb.fst");
-        $dumpvars(0, top_tb);
-    end
+    // initial begin
+    //     $dumpfile("logs/top_tb.fst");
+    //     $dumpvars(0, top_tb);
+    // end
 
 endmodule

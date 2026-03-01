@@ -16,8 +16,8 @@ limitations under the License.
 
 #include <coremark.h>
 #include <stdarg.h>
-#include <stdio.h>
 
+#define UART_TX   (*(volatile ee_size_t *)0x00010000)
 #define ZEROPAD   (1 << 0) /* Pad with zero */
 #define SIGN      (1 << 1) /* Unsigned/signed long */
 #define PLUS      (1 << 2) /* Show plus */
@@ -663,7 +663,7 @@ ee_vsprintf(char *buf, const char *fmt, va_list args)
 void
 uart_send_char(char c)
 {
-    printf("%c", c);
+    UART_TX = c;
 // #error "You must implement the method uart_send_char to use this file!\n";
     /*	Output of a char to a UART usually follows the following model:
             Wait until UART is ready

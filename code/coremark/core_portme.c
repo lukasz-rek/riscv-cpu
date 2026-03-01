@@ -17,7 +17,6 @@ Original Author: Shay Gal-on
 */
 #include "coremark.h"
 #include "core_portme.h"
-#include <time.h>
 
 #if VALIDATION_RUN
 volatile ee_s32 seed1_volatile = 0x3415;
@@ -45,9 +44,9 @@ volatile ee_s32 seed5_volatile = 0;
 CORETIMETYPE
 barebones_clock()
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (CORETIMETYPE)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    ee_u32 cycles;
+    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycles));
+    return cycles;
 }
 /* Define : TIMER_RES_DIVIDER
         Divider to trade off timer resolution and total time that can be

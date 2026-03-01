@@ -1,7 +1,7 @@
 #include <stdint.h>
 
-#define UART_TX   (*(volatile uint32_t *)0x00001000)
-#define DONE_FLAG (*(volatile uint32_t *)0x00001004)
+#define UART_TX   (*(volatile uint32_t *)0x00010000)
+#define DONE_FLAG (*(volatile uint32_t *)0x00010004)
 
 void uart_putc(char c) {
     UART_TX = c;
@@ -32,6 +32,6 @@ int main() {
     uart_putc('\n');
 
 
-    DONE_FLAG = 0xDEADBEEF;
+    // DONE_FLAG = 0xDEADBEEF;
     return 0;
 }
