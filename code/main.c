@@ -4,6 +4,7 @@
 #define DONE_FLAG (*(volatile uint32_t *)0x00010004)
 
 void uart_putc(char c) {
+    while (UART_TX & 1);  // wait while FIFO is full
     UART_TX = c;
 }
 

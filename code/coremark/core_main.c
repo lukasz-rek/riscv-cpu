@@ -63,7 +63,6 @@ iterate(void *pres)
 
     for (i = 0; i < iterations; i++)
     {
-        (*(volatile ee_u32 *)0x00010000) = '.';
         crc      = core_bench_list(res, 1);
         res->crc = crcu16(crc, res->crc);
         crc      = core_bench_list(res, -1);

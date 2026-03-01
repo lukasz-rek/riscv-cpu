@@ -6,7 +6,7 @@ TOP_MODULE_NAME = top
 
 build: code
 	@echo "Compiling all modules..."
-	
+
 	@echo "===== Found rtl source files: "
 	@echo "$(RTL_FILES)"
 
@@ -24,6 +24,10 @@ run:
 
 code:
 	@$(MAKE) -C code all
+
+coremark:
+	@$(MAKE) -C code/coremark clean
+	@$(MAKE) -C code/coremark
 
 format:
 	@echo "Formating..."

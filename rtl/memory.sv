@@ -1,10 +1,11 @@
 module memory #(
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 32,
-    parameter int MEM_DEPTH  = 32768,  // 32-bit words → 64KB total
+    parameter int MEM_DEPTH  = 32768,
     parameter     INIT_FILE  = ""
 ) (
     input  logic                  clk,
+    // Otherwise it cries not all bits used
     /* verilator lint_off UNUSEDSIGNAL */
     input  logic [ADDR_WIDTH-1:0] addr1,
     input  logic [ADDR_WIDTH-1:0] addr2,

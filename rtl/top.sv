@@ -31,6 +31,8 @@ module top #(
   );
 
   // Instantiate memory
+  logic [31:0] bram_rd_data2;
+
   (* dont_touch = "true" *) memory #(
       .INIT_FILE(INIT_FILE)
   ) bram_mem (
@@ -41,7 +43,7 @@ module top #(
       .wr_data(mem_wr_data),
       .wr_addr(mem_wr_addr),
       .rd_data1(mem_rd_data1),
-      .rd_data2(mem_rd_data2),
+      .rd_data2(bram_rd_data2),
       .byte_en(mem_byte_en)
   );
 
@@ -56,7 +58,21 @@ module top #(
   logic [PTR_W:0] wr_ptr, rd_ptr;  // extra bit for full/empty detection
 
   wire fifo_empty = (wr_ptr == rd_ptr);
+  wire fifo_full  = (wr_ptr[PTR_W-1:0] == rd_ptr[PTR_W-1:0]) &&
+                    (wr_ptr[PTR_W]      != rd_ptr[PTR_W]);
   wire fifo_push  = mem_wr_en && (mem_wr_addr == UART_ADDR);
+
+  // Read mux: return FIFO busy status when CPU reads from UART_ADDR
+  // Delay the select by one cycle to match BRAM read latency
+  logic uart_rd_sel;
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n)
+      uart_rd_sel <= 1'b0;
+    else
+      uart_rd_sel <= (mem_addr2 == UART_ADDR);
+  end
+
+  assign mem_rd_data2 = uart_rd_sel ? {31'b0, fifo_full} : bram_rd_data2;
 
   // Push into FIFO on CPU write
   always_ff @(posedge clk or negedge rst_n) begin
@@ -88,7 +104,7 @@ module top #(
   end
 
   uart_tx #(
-      .CLK_FREQ(95_000_000),
+      .CLK_FREQ(90_909_091),
       .BAUD(115200)
   ) uart (
       .clk(clk),
