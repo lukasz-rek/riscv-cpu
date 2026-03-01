@@ -7,7 +7,49 @@ Just making a riscv cpu to learn out of order execution in depth and to just ben
 
 They should've tought me all that at uni but they only teased it.
 
-Currently, there is a simple riscv32i implementation that does everything in a single cycle and stalls when reading memory from BRAM. Slow but works. It also has .tcl script that compiles everything for a kria kv260 so the timing/area impacts can be measured. Next I wanna port coremark, maybe dhrystone also and then go on to implement improvements and see whether they are actually worth anything. 
+Currently, there is a simple riscv32i implementation that does everything in a single cycle and stalls when reading memory from BRAM. Slow but works. It also has .tcl script that compiles everything for a kria kv260 so the timing/area impacts can be measured. 
+
+# Current stats
+
+My Ryzen 9 5900 HS when running my ported benchmark doesn't even reach 100% util on single core (lol) but has below scores.
+```
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 16878
+Total time (secs): 16
+Iterations/Sec   : 37500
+Iterations       : 600000
+Compiler version : GCC15.2.1 20260209
+Compiler flags   : -O3
+Memory location  : STACK
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xa14c
+Correct operation validated. See README.md for run and reporting rules.
+```
+Whereas my beatiful core achieves 
+```
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 1205310594
+Total time (secs): 13
+Iterations/Sec   : 61
+Iterations       : 800
+Compiler version : GCC15.2.0
+Compiler flags   : -O3
+Memory location  : STACK
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xcc42
+Correct operation validated. See README.md for run and reporting rules.
+```
+
+So it's a tiny 586 times slower! However it does pass it succesfully so atleast that's nice.
+
 
 # Build
 
@@ -32,8 +74,3 @@ gtkwave logs/waveform.fst
 
 
 ```
-
-# Tests
-For now LLM made placeholders, I will need to improve them one day.
-
-
