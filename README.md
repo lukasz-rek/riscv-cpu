@@ -29,13 +29,13 @@ seedcrc          : 0xe9f5
 [0]crcfinal      : 0xa14c
 Correct operation validated. See README.md for run and reporting rules.
 ```
-Whereas my beatiful core achieves 
+Whereas my beatiful core achieves way less. I gotta write this down. With M extension at 20 MHz (max without pipelining)
 ```
 2K performance run parameters for coremark.
 CoreMark Size    : 666
-Total ticks      : 1205310594
-Total time (secs): 13
-Iterations/Sec   : 61
+Total ticks      : 511118594
+Total time (secs): 25
+Iterations/Sec   : 32
 Iterations       : 800
 Compiler version : GCC15.2.0
 Compiler flags   : -O3
@@ -47,8 +47,6 @@ seedcrc          : 0xe9f5
 [0]crcfinal      : 0xcc42
 Correct operation validated. See README.md for run and reporting rules.
 ```
-
-So it's a tiny 586 times slower! However it does pass it succesfully so atleast that's nice.
 
 
 # Build

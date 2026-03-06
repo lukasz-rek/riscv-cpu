@@ -4,11 +4,9 @@ module top_wrapper (
     output wire uart_tx
 );
 
-    top #(
-        .INIT_FILE("")
-    ) top_inst (
+    top top_inst (
         .clk(clk),
-        .rst_n(rst_n),
+        .rst_n(1'b1),
         .uart_tx(uart_tx)
     );
 

@@ -2,7 +2,7 @@ package core_pkg;
 
 
   // ALU operation codes - minimal set for RV32I
-  typedef enum logic [3:0] {
+  typedef enum logic [4:0] {
     ALU_ADD,
     ALU_SUB,
 
@@ -15,7 +15,18 @@ package core_pkg;
     ALU_SRA,  // Shif Right Arithmetic
 
     ALU_SLT,  // Set Less than
-    ALU_SLTU
+    ALU_SLTU,
+
+    // M extension ops
+    ALU_MUL,
+    ALU_MULH,
+    ALU_MULHSU,
+    ALU_MULHU,
+    ALU_DIV,
+    ALU_DIVU,
+    ALU_REM,
+    ALU_REMU
+
   } alu_op_t;
 
 

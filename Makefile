@@ -22,6 +22,13 @@ run:
 	@echo "Running simulation..."
 	@./build/V$(TOP_MODULE_NAME)_tb
 
+vivado:
+	# TODO: I gotta revise the build.tcl
+	@echo "Removing vivado project"
+	@rm -r vivado_proj/
+	@echo "Starting build"
+	@vivado_batch build.tcl
+
 code:
 	@$(MAKE) -C code all
 

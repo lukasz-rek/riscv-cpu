@@ -127,6 +127,7 @@ main(int argc, char *argv[])
     /* first call any initializations needed */
     portable_init(&(results[0].port), &argc, argv);
     /* First some checks to make sure benchmark will run ok */
+    ee_printf("Starting coremark\n");
     if (sizeof(struct list_head_s) > 128)
     {
         ee_printf("list_head structure too big for comparable data!\n");

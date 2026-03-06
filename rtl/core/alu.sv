@@ -26,6 +26,17 @@ module alu (
       // Signed comparisions
       ALU_SLT:  result = {31'b0, $signed(a) < $signed(b)};
       ALU_SLTU: result = {31'b0, a < b};
+
+      // M extension ops
+      ALU_MUL: result = ($signed(a) * $signed(b));  // Only keeps lowest so fine
+      ALU_MULH: result = 32'((64'($signed(a)) * 64'($signed(b))) >> 32);
+      ALU_MULHSU: result = 32'((64'($signed(a)) * 64'(b)) >> 32);
+      ALU_MULHU: result = 32'((64'(a) * 64'(b)) >> 32);
+
+      ALU_DIV:  result = $signed(a) / $signed(b);
+      ALU_DIVU: result = a / b;
+      ALU_REM:  result = $signed(a) % $signed(b);
+      ALU_REMU: result = a % b;
       default:  result = 32'h0;
     endcase
   end

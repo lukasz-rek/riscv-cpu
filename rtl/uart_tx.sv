@@ -20,10 +20,10 @@ module uart_tx #(
     STOP
   } state_t;
 
-  state_t        state;
-  logic [$clog2(CLKS_PER_BIT)-1:0] clk_cnt;
-  logic [2:0]    bit_idx;
-  logic [7:0]    shift_reg;
+  state_t                            state;
+  logic   [$clog2(CLKS_PER_BIT)-1:0] clk_cnt;
+  logic   [                     2:0] bit_idx;
+  logic   [                     7:0] shift_reg;
 
   assign busy = (state != IDLE);
 

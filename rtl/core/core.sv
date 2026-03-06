@@ -189,17 +189,32 @@ module core (
         end
         OP_R: begin
           alu_op_b = rs2_data;
-          case (funct3)
-            3'b000:  alu_op = (funct7 == 7'b0100000) ? ALU_SUB : ALU_ADD;
-            3'b001:  alu_op = ALU_SLL;
-            3'b010:  alu_op = ALU_SLT;
-            3'b011:  alu_op = ALU_SLTU;
-            3'b100:  alu_op = ALU_XOR;
-            3'b101:  alu_op = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
-            3'b110:  alu_op = ALU_OR;
-            3'b111:  alu_op = ALU_AND;
-            default: ;
-          endcase
+          if (funct7 == 7'b0000001) begin
+            // Handle M extension
+            case (funct3)
+              3'b000:  alu_op = ALU_MUL;
+              3'b001:  alu_op = ALU_MULH;
+              3'b010:  alu_op = ALU_MULHSU;
+              3'b011:  alu_op = ALU_MULHU;
+              3'b100:  alu_op = ALU_DIV;
+              3'b101:  alu_op = ALU_DIVU;
+              3'b110:  alu_op = ALU_REM;
+              3'b111:  alu_op = ALU_REMU;
+              default;
+            endcase
+          end else begin
+            case (funct3)
+              3'b000:  alu_op = (funct7 == 7'b0100000) ? ALU_SUB : ALU_ADD;
+              3'b001:  alu_op = ALU_SLL;
+              3'b010:  alu_op = ALU_SLT;
+              3'b011:  alu_op = ALU_SLTU;
+              3'b100:  alu_op = ALU_XOR;
+              3'b101:  alu_op = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
+              3'b110:  alu_op = ALU_OR;
+              3'b111:  alu_op = ALU_AND;
+              default: ;
+            endcase
+          end
           rs_wr_en   = 1;
           rs_wr_data = alu_result;
         end
@@ -243,10 +258,10 @@ module core (
           rs_wr_data = (opcode == OP_LUI) ? imm : imm + pc;
         end
         OP_SYSTEM: begin
-            if (funct3 == 3'b010 && rs1_data == 32'b0) begin
-                rs_wr_en = 1;
-                rs_wr_data = cycle_count;
-            end
+          if (funct3 == 3'b010 && rs1_data == 32'b0) begin
+            rs_wr_en   = 1;
+            rs_wr_data = cycle_count;
+          end
         end
         default: ;
       endcase
@@ -261,7 +276,7 @@ module core (
       load_offset <= 2'b0;
       cycle_count <= 32'b0;
     end else begin
-        cycle_count <= cycle_count + 1;
+      cycle_count <= cycle_count + 1;
       case (state)
         S_FETCH: state <= S_EXEC;
         S_EXEC: begin

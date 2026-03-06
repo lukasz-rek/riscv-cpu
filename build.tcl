@@ -43,7 +43,7 @@ if {[file exists $proj_file]} {
     apply_bd_automation -rule xilinx.com:bd_rule:zynq_ultra_ps_e -config {apply_board_preset "1"} [get_bd_cells zynq_ps]
 
     # Set PL clock frequency (MHz) - adjust to meet timing
-    set_property CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ 95 [get_bd_cells zynq_ps]
+    set_property CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ 20 [get_bd_cells zynq_ps]
 
     # Disable AXI master ports (we don't need PS-PL AXI for now)
     set_property -dict [list \
@@ -105,3 +105,9 @@ file mkdir $logs_dir
 foreach f [glob -nocomplain vivado*.log vivado*.jou clockInfo.txt] {
     file rename -force $f ${logs_dir}/[file tail $f]
 }
+
+write_bitstream -force ${output_dir}/${design_name}.bit
+
+write_cfgmem -force -format BIN -interface SMAPx32 -disablebitswap \
+    -loadbit "up 0x0 ${output_dir}/${design_name}.bit" \
+    ${output_dir}/${design_name}.bit.bin
