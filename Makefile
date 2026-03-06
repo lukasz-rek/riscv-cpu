@@ -38,7 +38,7 @@ coremark:
 
 format:
 	@echo "Formating..."
-	verible-verilog-format --inplace $(RTL_FILES)
+	verible-verilog-format --inplace $(RTL_FILES) --indentation_spaces 4
 
 # Much quicker
 lint:

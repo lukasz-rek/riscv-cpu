@@ -42,7 +42,7 @@ module top_tb;
                 completion_time  = $time;
                 completion_cycle = dut.cpu.cycle_count;
                 // Wait for UART FIFO to drain and last byte to finish
-                wait(dut.fifo_empty && !dut.tx_busy);
+                wait(dut.uart.fifo_empty);
                 repeat(10) @(posedge clk);
                 $display("Program completed at cycle %0d (sim time %0t)", completion_cycle, completion_time);
 
