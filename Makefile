@@ -15,7 +15,7 @@ build: code
 
 	@echo "Compiling..."
 	@mkdir -p build
-	@verilator $(VERILATOR_FLAGS) --cc $(RTL_FILES) $(TB_FILES) --exe --build -j 0 -Mdir build --timing --main --top-module $(TOP_MODULE_NAME)_tb
+	@verilator $(VERILATOR_FLAGS) --cc $(RTL_FILES) $(TB_FILES) --exe --build -j 0 -Mdir build --timing --main --top-module $(TOP_MODULE_NAME)_tb --trace-structs
 	@echo "Done"
 
 run:
@@ -47,7 +47,7 @@ lint:
 
 wave:
 	@echo "Opening waveform"
-	@gtkwave logs/top_tb.fst
+	@gtkwave logs/top_tb.fst logs/signals.gtkw
 
 clean:
 	@echo "Cleaning up..."

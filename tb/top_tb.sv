@@ -40,7 +40,7 @@ module top_tb;
                 wait(dut.bram_mem.mem[16385] == 32'hDEADBEEF);
 
                 completion_time  = $time;
-                completion_cycle = dut.cpu.cycle_count;
+                // completion_cycle = dut.cpu.cycle_count;
                 // Wait for UART FIFO to drain and last byte to finish
                 wait(dut.uart.fifo_empty);
                 repeat(10) @(posedge clk);

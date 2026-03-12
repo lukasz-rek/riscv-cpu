@@ -61,30 +61,6 @@ module top #(
     assign mem_rd_data2 = uart_rd_sel ? {31'b0, fifo_full} : bram_rd_data2;
 
 
-
-    // Push into FIFO on CPU write
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //     if (!rst_n) wr_ptr <= '0;
-    //     else if (fifo_push) begin
-    //         fifo[wr_ptr[PTR_W-1:0]] <= mem_wr_data[7:0];
-    //         wr_ptr <= wr_ptr + 1;
-    //     end
-    // end
-
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //     if (!rst_n) begin
-    //         rd_ptr  <= '0;
-    //         tx_send <= 1'b0;
-    //     end else begin
-    //         tx_send <= 1'b0;
-    //         if (!fifo_empty && !tx_busy && !tx_send) begin
-    //             tx_data <= fifo[rd_ptr[PTR_W-1:0]];
-    //             tx_send <= 1'b1;
-    //             rd_ptr  <= rd_ptr + 1;
-    //         end
-    //     end
-    // end
-
     uart_tx #(
         .CLK_FREQ(20_000_000),
         .BAUD(115200)
