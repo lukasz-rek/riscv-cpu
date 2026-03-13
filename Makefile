@@ -47,7 +47,7 @@ lint:
 
 wave:
 	@echo "Opening waveform"
-	@gtkwave logs/top_tb.fst logs/signals.gtkw
+	@surfer logs/top_tb.fst -s logs/signals
 
 clean:
 	@echo "Cleaning up..."

@@ -32,8 +32,8 @@ module core (
         .rst_n(rst_n),
 
         .mem_instr_data(mem_rd_data1),
-        .next_pc(next_pc),
-        .next_pc_en(next_pc_en),
+        .id_next_pc(next_pc),
+        .id_next_pc_en(next_pc_en),
 
         .id_instr_data(if_id_instr),
         .id_instr_pc  (if_id_pc),
@@ -115,8 +115,8 @@ module core (
     );
 
     rf_writeback rf_stage (
-        .clk  (clk),
-        .rst_n(rst_n),
+        // .clk  (clk),
+        // .rst_n(rst_n),
 
         .rf_wr_en(rf_wr_en),
         .wr_addr (rd),

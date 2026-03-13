@@ -3,13 +3,13 @@
 
 _start:
     # Set stack pointer below UART I/O region
-    la sp, _stack_top
+    # la sp, _stack_top
 
     # Call main
     # call main
 
     # Signal completion
-    li t0, 0x00010004
+    # li t0, 0x00010004
     li t1, 0xDEADBEEF
     sw t1, 0(t0)
 
@@ -25,3 +25,9 @@ _halt:
     #       10: deadc337     	lui	t1, 0xdeadc
     #       14: eef30313     	addi	t1, t1, -0x111
     #       18: 0062a023     	sw	t1, 0x0(t0)
+
+
+    # 00000000 <_start>:
+    #        0: deadc337     	lui	t1, 0xdeadc
+    #        4: eef30313     	addi	t1, t1, -0x111
+    #        8: 0062a023     	sw	t1, 0x0(t0)
