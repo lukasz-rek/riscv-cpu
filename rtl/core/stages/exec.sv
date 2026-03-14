@@ -61,7 +61,7 @@ module exec (
         endcase
 
         // Handle possible flush
-        if (alu_zero != in_ctrl_signals.branch_expects_zero && alu_op != ALU_OFF) begin
+        if (alu_zero != in_ctrl_signals.branch_expects_zero && in_ctrl_signals.branch_instr) begin
             // We done goofed up, we need to fluuuuuuuuuuuuuuuush
             flush = 1;
             flush_pc = in_ctrl_signals.pc;

@@ -91,6 +91,7 @@ module decode (
                         1'b0
                     };
                     temp_signals.alu_op_b = rs2_data;
+                    temp_signals.branch_instr = 1;
                     case (funct3)
                         BNE, BEQ: temp_signals.alu_op = ALU_SUB;
                         BLT, BGE: temp_signals.alu_op = ALU_SLT;
@@ -181,22 +182,30 @@ module decode (
                 end
                 OP_I_MEM, OP_JALR, OP_I_ALU: begin
                     imm = {{20{instruction[31]}}, instruction[31:20]};
+                    temp_signals.rf_wr_en = 1;
+
                     case (opcode)
                         OP_I_MEM: begin
-                            temp_signals.rf_wr_en = 1;
                             temp_signals.alu_op = ALU_ADD;
                             temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
                             temp_signals.alu_op_b = imm;
+                            // Rf writeback needs to shift by addr[1:0]
+                            case (funct3)
+                                3'b000:  temp_signals.load_mask = LB;  // LB
+                                3'b001:  temp_signals.load_mask = LH;  // LH
+                                3'b010:  temp_signals.load_mask = LW;  // LW
+                                3'b100:  temp_signals.load_mask = LBU;  // LBU
+                                3'b101:  temp_signals.load_mask = LHU;  // LHU
+                                default: ;
+                            endcase
                         end
                         OP_JALR: begin
-                            temp_signals.rf_wr_en = 1;
                             temp_signals.alu_op = ALU_ADD;
                             temp_signals.rf_writeback = ALU_PC_INCR;
                             next_pc = rs1_data + imm;
                             next_pc_en = 1;
                         end
                         OP_I_ALU: begin
-                            temp_signals.rf_wr_en = 1;
                             temp_signals.rf_writeback = ALU_REG;
                             temp_signals.alu_op_b = imm;
                             case (funct3)
@@ -246,7 +255,7 @@ module decode (
             // Propagate rd buffer values
             for (int i = 2; i > 0; i--) rd_buffer[i] <= rd_buffer[i-1];
             ctrl_signals <= temp_signals;
-            rd_buffer[0] <= (!data_hazard) ? rd : '0;
+            rd_buffer[0] <= (!data_hazard && temp_signals.rf_wr_en && !flush) ? rd : '0;
             cycle_count  <= cycle_count + 1;
         end
     end

@@ -41,6 +41,14 @@ package core_pkg;
         ALU_PC_INCR  // Used in few cases where we store next instr address
     } rf_writeback_t;
 
+    typedef enum logic [2:0] {
+        L_OFF,
+        LB,
+        LH,
+        LW,
+        LBU,
+        LHU
+    } load_mask_t;
 
     typedef struct packed {
         // Register ops
@@ -51,6 +59,8 @@ package core_pkg;
         logic [4:0] rd;
         // Branching
         logic branch_expects_zero;
+        logic branch_instr;
+        load_mask_t load_mask;
 
         // Store
         logic [31:0] mem_addr2;

@@ -112,8 +112,8 @@ module core (
 
         .in_ctrl_signals(ex_mem_ctrl),
 
-        .mem_addr2(mem_addr2),
-        .mem_wr_en(mem_wr_en),
+        .mem_addr2  (mem_addr2),
+        .mem_wr_en  (mem_wr_en),
         .mem_wr_data(mem_wr_data),
         .mem_wr_addr(mem_wr_addr),
         .mem_byte_en(mem_byte_en),

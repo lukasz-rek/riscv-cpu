@@ -17,8 +17,8 @@ module mem (
 );
 
     always_comb begin
-        mem_addr2 = in_ctrl_signals.mem_addr2;
-        mem_wr_en = in_ctrl_signals.mem_wr_en;
+        mem_addr2   = in_ctrl_signals.mem_addr2;
+        mem_wr_en   = in_ctrl_signals.mem_wr_en;
         mem_wr_data = in_ctrl_signals.mem_wr_data;
         mem_wr_addr = in_ctrl_signals.mem_wr_addr;
         mem_byte_en = in_ctrl_signals.mem_byte_en;
