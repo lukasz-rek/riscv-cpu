@@ -1,8 +1,9 @@
 CC = clang
 OBJCOPY = llvm-objcopy
 
-CFLAGS = --target=riscv32 -march=rv32im -mabi=ilp32 -nostdlib -ffreestanding
-LDFLAGS = -fuse-ld=lld -T linker.ld
+CFLAGS   = --target=riscv32 -march=rv32im -mabi=ilp32 -nostdlib -ffreestanding \
+         -ffunction-sections -fdata-sections
+LDFLAGS  = -fuse-ld=lld -Wl,--gc-sections -T linker.ld
 
 BUILD_DIR = build
 

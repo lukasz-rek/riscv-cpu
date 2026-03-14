@@ -18,27 +18,35 @@ void print_hex(uint32_t val) {
 int main() {
     uint32_t cycle1, cycle2;
 
-    // __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle1));
+    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle1));
 
-    // __asm__ volatile ("nop");
-    // __asm__ volatile ("nop");
+    __asm__ volatile ("nop");
+    __asm__ volatile ("nop");
 
-    // __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle2));
+    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle2));
 
     // int a = 110;
     // int b = 55;
 
     // a /= b;
+    // int i = 6;
+    // // if += 1;
+    // if ( UART_TX == 1) {
+    //     UART_TX = 'y';
+    // } else {
+    //     UART_TX = 'n';
+    // }
 
-    // print_hex(a);
-    // uart_putc('\n');
-    while (1) {
-        uart_putc('a');
-        uart_putc('b');
-        uart_putc('c');
-        uart_putc('d');
-        uart_putc('\n');
-    }
+    print_hex(cycle2 - cycle1);
+    uart_putc('a');
+    uart_putc('\n');
+    // while (1) {
+        // uart_putc('a');
+        // uart_putc('b');
+        // uart_putc('c');
+        // uart_putc('d');
+        // uart_putc('\n');
+    // }
 
 
     // DONE_FLAG = 0xDEADBEEF;
