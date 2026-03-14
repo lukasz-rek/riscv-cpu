@@ -37,6 +37,7 @@ module decode (
     logic [31:0] imm;
 
     logic [31:0] cycle_count;
+    logic [31:0] instr_count;
 
     // Used for comibnational stuff and clocked once later
     ctrl_signals_t temp_signals;
@@ -45,6 +46,7 @@ module decode (
     // 4 elements for current stage up to last
     // Gets forwarded at each clock, if any of input registers in it then stall
     logic [4:0] rd_buffer[2:0];
+
 
     assign instruction = instr_data;
 
@@ -250,6 +252,7 @@ module decode (
         if (!rst_n) begin
             ctrl_signals <= '0;
             cycle_count  <= '0;
+            instr_count <= '0;
             for (int i = 0; i < 3; i++) rd_buffer[i] <= '0;
         end else begin
             // Propagate rd buffer values
@@ -257,6 +260,15 @@ module decode (
             ctrl_signals <= temp_signals;
             rd_buffer[0] <= (!data_hazard && temp_signals.rf_wr_en && !flush) ? rd : '0;
             cycle_count  <= cycle_count + 1;
+            // instr_count <= (!data_hazard && !flush) ? instr_count + 1 : instr_count;
+            // Handle instruction counting
+            if (flush) begin
+                instr_count <= instr_count - 1;
+            end else if (data_hazard) begin
+                instr_count <= instr_count;
+            end else begin
+                instr_count <= instr_count + 1;
+            end
         end
     end
 

@@ -47,7 +47,25 @@ seedcrc          : 0xe9f5
 [0]crcfinal      : 0xcc42
 Correct operation validated. See README.md for run and reporting rules.
 ```
+With basic pipelining it's only slightly better as it still has lots of stalls and CPI hovers ~2.25
 
+```
+2K performance run parameters for coremark.         
+CoreMark Size    : 666                                               
+Total ticks      : 483976148                                         
+Total time (secs): 21                                                
+Iterations/Sec   : 38                                                
+Iterations       : 800                                               
+Compiler version : GCC15.2.0                                         
+Compiler flags   : -O3                                               
+Memory location  : STACK                                             
+seedcrc          : 0xe9f5                                            
+[0]crclist       : 0xe714                                            
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xcc42
+Correct operation validated. See README.md for run and reporting rule.
+```
 
 # Build
 

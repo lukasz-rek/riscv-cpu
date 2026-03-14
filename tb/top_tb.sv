@@ -3,7 +3,8 @@ module top_tb;
     logic clk;
     logic rst_n;
     time     completion_time;
-    longint  completion_cycle;
+    real  completion_cycle;
+    real  instr_count;
 
     /* verilator lint_off UNUSEDSIGNAL */
     logic uart_tx_pin;
@@ -40,11 +41,13 @@ module top_tb;
                 wait(dut.bram_mem.mem[16385] == 32'hDEADBEEF);
 
                 completion_time  = $time;
-                // completion_cycle = dut.cpu.cycle_count;
+                completion_cycle = dut.cpu.decode_stage.cycle_count;
+                instr_count = dut.cpu.decode_stage.instr_count;
                 // Wait for UART FIFO to drain and last byte to finish
                 wait(dut.uart.fifo_empty);
                 repeat(10) @(posedge clk);
                 $display("Program completed at cycle %0d (sim time %0t)", completion_cycle, completion_time);
+                $display("CPI was ~ %0f", completion_cycle / instr_count);
 
                 $finish;
             end

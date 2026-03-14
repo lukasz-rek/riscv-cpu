@@ -4,6 +4,12 @@ TB_FILES := $(wildcard tb/*.sv)
 VERILATOR_FLAGS = -Wall -Wno-fatal --trace-fst --trace
 TOP_MODULE_NAME = top
 
+# Stuff for copying over bitstream
+VIVADO_IMPL_DIR := $(HOME)/Projekty/cpu/vivado_proj/riscv_core.runs/impl_1
+BIT_FILE := $(VIVADO_IMPL_DIR)/system_wrapper.bit
+BIN_FILE := $(VIVADO_IMPL_DIR)/system_wrapper.bit.bin
+BIF_FILE := $(VIVADO_IMPL_DIR)/bitstream.bif
+
 build: code
 	@echo "Compiling all modules..."
 
@@ -48,6 +54,16 @@ lint:
 wave:
 	@echo "Opening waveform"
 	@surfer logs/top_tb.fst -s logs/signals
+
+bitstream: $(BIN_FILE)
+	scp $(BIN_FILE) kria:~/bitstreams/bitstream.bit.bin
+
+$(BIN_FILE): $(BIT_FILE)
+	source ~/Apps/vivado/2025.2/Vivado/settings64.sh && \
+	cd $(VIVADO_IMPL_DIR) && \
+	echo 'the_ROM_image: { [destination_device=pl] system_wrapper.bit }' > $(BIF_FILE) && \
+	bootgen -image $(BIF_FILE) -arch zynqmp -o $(BIN_FILE) -w
+
 
 clean:
 	@echo "Cleaning up..."
