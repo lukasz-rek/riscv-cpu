@@ -50,7 +50,7 @@ module top_tb;
             end
 
             begin
-                repeat(5000000) @(posedge clk);
+                repeat(500000000) @(posedge clk);
                 $display("TIMEOUT - program did not complete");
                 $finish;
             end

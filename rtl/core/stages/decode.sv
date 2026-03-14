@@ -66,14 +66,14 @@ module decode (
         rs2_addr   = rs2;
         next_pc_en = 0;
         // Check if we gotta stall
-        if (data_hazard) begin
-            temp_signals = '0;
-            next_pc_en = (rst_n) ? '1 : '0;
-            next_pc = instr_pc;
-        end else if (flush) begin
+        if (flush) begin
             temp_signals = '0;
             next_pc_en = 1;
             next_pc = flush_pc + 4;
+        end else if (data_hazard) begin
+            temp_signals = '0;
+            next_pc_en = (rst_n) ? '1 : '0;
+            next_pc = instr_pc;
         end else begin
             temp_signals = '0;
             temp_signals.pc = instr_pc;
