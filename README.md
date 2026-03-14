@@ -29,7 +29,7 @@ seedcrc          : 0xe9f5
 [0]crcfinal      : 0xa14c
 Correct operation validated. See README.md for run and reporting rules.
 ```
-Whereas my beatiful core achieves way less. I gotta write this down. With M extension at 20 MHz (max without pipelining)
+Whereas my beatiful core achieves way less. With M extension at 20 MHz (max without pipelining)
 ```
 2K performance run parameters for coremark.
 CoreMark Size    : 666
