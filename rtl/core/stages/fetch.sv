@@ -17,27 +17,28 @@ module fetch (
 );
 
     logic [31:0] pc;
-    logic [31:0] next_pc;
+    logic [31:0] prev_pc;
+    logic valid;
+    // logic [31:0] next_pc;
     /*
 Very simple idea
 We just set instructions for next cycle and pass along one we have now.
 Sometimes we might want to have diff next_pc (stalls, BTB) and ID can override
 */
-
-    assign next_pc = (id_next_pc_en) ? id_next_pc : pc + 4;
-    assign mem_instr_addr = (rst_n) ? next_pc : 32'b0;
+    assign mem_instr_addr = (id_next_pc_en) ? id_next_pc : pc;
+    assign id_instr_data = (valid) ? mem_instr_data : '0;
+    assign id_instr_pc = prev_pc;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             pc <= 0;
-            id_instr_data <= 32'b0;
-            id_instr_pc <= 32'b0;
+            valid <= 0;
+            prev_pc <= 0;
         end else begin
-            id_instr_pc   <= pc;
-            id_instr_data <= mem_instr_data;
-            pc <= next_pc;
+            pc <= (id_next_pc_en) ? id_next_pc + 4 : pc + 4;
+            valid <= 1;
+            prev_pc <= mem_instr_addr;
         end
-
     end
 
 

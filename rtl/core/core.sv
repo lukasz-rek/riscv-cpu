@@ -64,6 +64,8 @@ module core (
 
 
     ctrl_signals_t id_ex_ctrl;
+    logic ex_id_flush;
+    logic [31:0] ex_id_flush_pc;
 
     decode decode_stage (
         .clk  (clk),
@@ -80,6 +82,9 @@ module core (
         .rs1_data(rs1_data),
         .rs2_data(rs2_data),
 
+        .flush(ex_id_flush),
+        .flush_pc(ex_id_flush_pc),
+
         .ctrl_signals(id_ex_ctrl)
 
     );
@@ -93,7 +98,10 @@ module core (
         .rst_n(rst_n),
 
         .in_ctrl_signals (id_ex_ctrl),
-        .out_ctrl_signals(ex_mem_ctrl)
+        .out_ctrl_signals(ex_mem_ctrl),
+
+        .flush(ex_id_flush),
+        .flush_pc(ex_id_flush_pc)
     );
 
     ctrl_signals_t mem_rf_ctrl;
@@ -104,7 +112,6 @@ module core (
 
         .in_ctrl_signals(ex_mem_ctrl),
 
-        .mem_read(mem_rd_data2),
         .mem_addr2(mem_addr2),
         .mem_wr_en(mem_wr_en),
         .mem_wr_data(mem_wr_data),
@@ -121,6 +128,7 @@ module core (
         .rf_wr_en(rf_wr_en),
         .wr_addr (rd),
         .wr_data (rf_wr_data),
+        .mem_read(mem_rd_data2),
 
         .in_ctrl_signals(mem_rf_ctrl)
     );

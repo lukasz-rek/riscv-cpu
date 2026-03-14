@@ -29,9 +29,17 @@ int main() {
     // int b = 55;
 
     // a /= b;
+    // int i = 6;
+    // // if += 1;
+    // if ( UART_TX == 1) {
+    //     UART_TX = 'y';
+    // } else {
+    //     UART_TX = 'n';
+    // }
 
     // print_hex(a);
-    // uart_putc('\n');
+    uart_putc('a');
+    uart_putc('\n');
     while (1) {
         uart_putc('a');
         uart_putc('b');

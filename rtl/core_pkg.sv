@@ -35,7 +35,9 @@ package core_pkg;
         OFF,
         ALU_REG,
         ALU_MEM_ADDR_READ,
-        ALU_MEM_ADDR_WRITE,
+        ALU_MEM_ADDR_WRITE_B,
+        ALU_MEM_ADDR_WRITE_H,
+        ALU_MEM_ADDR_WRITE_W,
         ALU_PC_INCR  // Used in few cases where we store next instr address
     } rf_writeback_t;
 
@@ -44,7 +46,11 @@ package core_pkg;
         // Register ops
         logic rf_wr_en;
         logic [31:0] rf_wr_data;
+        logic [4:0] rs1;
+        logic [4:0] rs2;
         logic [4:0] rd;
+        // Branching
+        logic branch_expects_zero;
 
         // Store
         logic [31:0] mem_addr2;

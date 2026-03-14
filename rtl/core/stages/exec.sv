@@ -7,7 +7,10 @@ module exec (
     input logic rst_n,
 
     input  ctrl_signals_t in_ctrl_signals,
-    output ctrl_signals_t out_ctrl_signals
+    output ctrl_signals_t out_ctrl_signals,
+
+    output logic flush,
+    output logic [31:0] flush_pc
 );
 
 
@@ -24,33 +27,54 @@ module exec (
         .zero(alu_zero)
     );
 
+    ctrl_signals_t temp_signals;
+
+    always_comb begin
+        alu_op_a = in_ctrl_signals.alu_op_a;
+        alu_op_b = in_ctrl_signals.alu_op_b;
+        alu_op = in_ctrl_signals.alu_op;
+        flush = 0;
+        flush_pc = '0;
+
+        temp_signals = in_ctrl_signals;
+        case (in_ctrl_signals.rf_writeback)
+            ALU_REG: begin
+                temp_signals.rf_wr_data = alu_result;
+            end
+            ALU_MEM_ADDR_WRITE_B, ALU_MEM_ADDR_WRITE_H, ALU_MEM_ADDR_WRITE_W: begin
+                temp_signals.mem_wr_addr = alu_result;
+                if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_B) begin
+                    temp_signals.mem_byte_en = 4'b0001 << alu_result[1:0];
+                end else if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_H) begin
+                    temp_signals.mem_byte_en = 4'b0011 << {alu_result[1], 1'b0};
+                end
+            end
+            ALU_MEM_ADDR_READ: begin
+                temp_signals.mem_addr2 = alu_result;
+            end
+            ALU_PC_INCR: begin
+                alu_op_a = in_ctrl_signals.pc;
+                alu_op_b = 4;
+                temp_signals.rf_wr_data = alu_result;
+            end
+            default: ;
+        endcase
+
+        // Handle possible flush
+        if (alu_zero != in_ctrl_signals.branch_expects_zero && alu_op != ALU_OFF) begin
+            // We done goofed up, we need to fluuuuuuuuuuuuuuuush
+            flush = 1;
+            flush_pc = in_ctrl_signals.pc;
+            temp_signals = '0;  // Insert no ops later
+        end
+
+    end
+
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            alu_op_a <= 32'b0;
-            alu_op_b <= 32'b0;
-            alu_op   <= ALU_OFF;
+            out_ctrl_signals <= 0;
         end else begin
-            out_ctrl_signals <= in_ctrl_signals;
-            alu_op_a <= in_ctrl_signals.alu_op_a;
-            alu_op_b <= in_ctrl_signals.alu_op_b;
-            alu_op <= in_ctrl_signals.alu_op;
-            case (in_ctrl_signals.rf_writeback)
-                ALU_REG: begin
-                    out_ctrl_signals.rf_wr_data <= alu_result;
-                end
-                ALU_MEM_ADDR_WRITE: begin
-                    out_ctrl_signals.mem_wr_addr <= alu_result;
-                end
-                ALU_MEM_ADDR_READ: begin
-                    out_ctrl_signals.mem_addr2 <= alu_result;
-                end
-                ALU_PC_INCR: begin
-                    alu_op_a <= in_ctrl_signals.pc;
-                    alu_op_b <= 4;
-                    out_ctrl_signals.rf_wr_data <= alu_result;
-                end
-                default: ;
-            endcase
+            out_ctrl_signals <= temp_signals;
         end
     end
 
