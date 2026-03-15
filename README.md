@@ -67,6 +67,27 @@ seedcrc          : 0xe9f5
 Correct operation validated. See README.md for run and reporting rule.
 ```
 
+Gets improved down to 1.5 CPI, with some look ahead in decode, can be better if moved to exec and including load look ahead
+```
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 327379284
+Total time (secs): 14
+Iterations/Sec   : 57
+Iterations       : 800
+Compiler version : GCC15.2.0
+Compiler flags   : -O3
+Memory location  : STACK
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xcc42
+Correct operation validated. See README.md for run and reporting rules.
+Program completed at cycle 328144857 (sim time 16407243025)
+CPI was ~ 1.523858
+```
+
 # Build
 
 Have verilator, verible, gtkwave and make installed

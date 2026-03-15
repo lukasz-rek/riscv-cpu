@@ -1,3 +1,4 @@
+
 package core_pkg;
 
 
@@ -70,6 +71,10 @@ package core_pkg;
         logic [3:0] mem_byte_en;
         // Load
         logic [1:0] load_offset;
+        logic rs1_forward_exec;
+        logic rs2_forward_exec;
+        logic mem_forward_exec;
+
 
         // Alu
         alu_op_t alu_op;

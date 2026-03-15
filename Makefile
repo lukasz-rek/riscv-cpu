@@ -1,7 +1,10 @@
 # This should strip comments from the file and give us a nice list
 RTL_FILES := $(shell grep -v '^\s*\(//\|$$\)' files.f | grep '\.s\?v$$')
 TB_FILES := $(wildcard tb/*.sv)
-VERILATOR_FLAGS = -Wall -Wno-fatal --trace-fst --trace
+VERILATOR_FLAGS = -Wall -Wno-fatal --x-assign fast --x-initial fast
+# Note to myself, never use threads, even 2 seem to kill perf
+VERILATOR_FLAGS += -CFLAGS "-O3 -march=native"
+# VERILATOR_FLAGS +=  --trace-structs --trace-fst --trace
 TOP_MODULE_NAME = top
 
 # Stuff for copying over bitstream
@@ -21,7 +24,7 @@ build: code
 
 	@echo "Compiling..."
 	@mkdir -p build
-	@verilator $(VERILATOR_FLAGS) --cc $(RTL_FILES) $(TB_FILES) --exe --build -j 0 -Mdir build --timing --main --top-module $(TOP_MODULE_NAME)_tb --trace-structs
+	@verilator $(VERILATOR_FLAGS) --cc $(RTL_FILES) $(TB_FILES) --exe --build -j 0 -Mdir build --timing --main --top-module $(TOP_MODULE_NAME)_tb
 	@echo "Done"
 
 run:

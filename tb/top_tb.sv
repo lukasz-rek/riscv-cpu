@@ -61,9 +61,9 @@ module top_tb;
     end
 
     // Optional: waveform dump
-    initial begin
-        $dumpfile("logs/top_tb.fst");
-        $dumpvars(0, top_tb);
-    end
+    // initial begin
+    //     $dumpfile("logs/top_tb.fst");
+    //     $dumpvars(0, top_tb);
+    // end
 
 endmodule

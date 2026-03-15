@@ -64,7 +64,9 @@ module core (
 
 
     ctrl_signals_t id_ex_ctrl;
+    ctrl_signals_t ex_id_frwrd_ctrl;
     logic ex_id_flush;
+    ctrl_signals_t rd_if_forward_ctrl;
     logic [31:0] ex_id_flush_pc;
 
     decode decode_stage (
@@ -85,6 +87,10 @@ module core (
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
 
+        .exec_forward_result(ex_id_frwrd_ctrl),
+        .mem_forward_result(ex_mem_ctrl),
+        .rf_forward_result(rd_if_forward_ctrl),
+
         .ctrl_signals(id_ex_ctrl)
 
     );
@@ -99,6 +105,10 @@ module core (
 
         .in_ctrl_signals (id_ex_ctrl),
         .out_ctrl_signals(ex_mem_ctrl),
+
+        .forward_result(ex_id_frwrd_ctrl),
+
+        .rf_forward_signals(rd_if_forward_ctrl),
 
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc)
@@ -121,6 +131,7 @@ module core (
         .out_ctrl_signals(mem_rf_ctrl)
     );
 
+
     rf_writeback rf_stage (
         // .clk  (clk),
         // .rst_n(rst_n),
@@ -130,7 +141,8 @@ module core (
         .wr_data (rf_wr_data),
         .mem_read(mem_rd_data2),
 
-        .in_ctrl_signals(mem_rf_ctrl)
+        .in_ctrl_signals(mem_rf_ctrl),
+        .current_ctrl_signals(rd_if_forward_ctrl)
     );
 
 

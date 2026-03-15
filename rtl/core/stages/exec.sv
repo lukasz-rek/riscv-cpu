@@ -9,6 +9,12 @@ module exec (
     input  ctrl_signals_t in_ctrl_signals,
     output ctrl_signals_t out_ctrl_signals,
 
+    output ctrl_signals_t forward_result,
+
+    /* verilator lint_off UNUSEDSIGNAL */
+    input ctrl_signals_t rf_forward_signals,
+    /* verilator lint_on UNUSEDSIGNAL */
+
     output logic flush,
     output logic [31:0] flush_pc
 );
@@ -28,6 +34,7 @@ module exec (
     );
 
     ctrl_signals_t temp_signals;
+    assign forward_result = temp_signals;
 
     always_comb begin
         alu_op_a = in_ctrl_signals.alu_op_a;

@@ -39,13 +39,12 @@ int main() {
 
     print_hex(cycle2 - cycle1);
     uart_putc('a');
+    uart_putc('b');
+    uart_putc('c');
+    uart_putc('d');
     uart_putc('\n');
     // while (1) {
-        // uart_putc('a');
-        // uart_putc('b');
-        // uart_putc('c');
-        // uart_putc('d');
-        // uart_putc('\n');
+
     // }
 
 
