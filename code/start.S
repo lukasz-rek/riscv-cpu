@@ -5,7 +5,6 @@ _start:
     # Set stack pointer below UART I/O region
     la sp, _stack_top
 
-    # Call main
     call main
 
     # Signal completion

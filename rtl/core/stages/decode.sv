@@ -13,19 +13,8 @@ module decode (
     output logic [31:0] next_pc,
     output logic next_pc_en,
 
-    // Register file stuff
-    output logic [ 4:0] rs1_addr,
-    output logic [ 4:0] rs2_addr,
-    input  logic [31:0] rs1_data,
-    input  logic [31:0] rs2_data,
-
-    // Forwarded results
-    /* verilator lint_off UNUSEDSIGNAL */
-    input ctrl_signals_t exec_forward_result,
-    input ctrl_signals_t mem_forward_result,
-    input ctrl_signals_t rf_forward_result,
-    /* verilator lint_on UNUSEDSIGNAL */
-
+    output logic [4:0] rs1_addr,
+    input logic [31:0] rs1_data,
     // Flushing
     input logic flush,
     input logic [31:0] flush_pc,
@@ -49,14 +38,10 @@ module decode (
     // Used for comibnational stuff and clocked once later
     ctrl_signals_t temp_signals;
 
-    // Keep track of data hazards, crude for now
-    // 4 elements for current stage up to last
-    // Gets forwarded at each clock, if any of input registers in it then stall
-    logic [4:0] rd_buffer[2:0];
+    // Keep track of data hazards, only use after load
+    logic [4:0] rd_buffer;
+    logic [4:0] rd_buffer_2;  // 2nd cycle tracking for JALR-after-load
 
-
-    logic [31:0] rs1_data_actual;
-    logic [31:0] rs2_data_actual;
 
     assign instruction = instr_data;
 
@@ -69,58 +54,39 @@ module decode (
     assign rs2 = instruction[24:20];
 
     logic data_hazard;
-    assign data_hazard = (rs1 != 0 && (rd_buffer[0] == rs1 || rd_buffer[1] == rs1)) ||
-             (rs2 != 0 && (rd_buffer[0] == rs2 || rd_buffer[1] == rs2));
+    assign data_hazard = (rs1 != 0 && rd_buffer == rs1) || (rs2 != 0 && rd_buffer == rs2);
+
+    // JALR reads rs1 in decode — needs load data available in WB, not mem
+    logic jalr_load_hazard;
+    assign jalr_load_hazard = (opcode == OP_JALR) && (rs1 != 0) && (rd_buffer_2 == rs1);
 
     // First actually decode the signals
     always_comb begin
         rs1_addr   = rs1;
-        rs2_addr   = rs2;
         next_pc_en = 0;
-        rs1_data_actual = rs1_data;
-        rs2_data_actual = rs2_data;
         // Check if we gotta stall
         if (flush) begin
             temp_signals = '0;
             next_pc_en = 1;
             next_pc = flush_pc + 4;
-        end else if (data_hazard) begin
+        end else if (data_hazard || jalr_load_hazard) begin
             temp_signals = '0;
             next_pc_en = (rst_n) ? '1 : '0;
             next_pc = instr_pc;
         end else begin
             temp_signals = '0;
-            // if (regs_from_exec) begin
-            //     temp_signals.rs1_forward_exec = (rs1 == rd_buffer[1]);
-            //     temp_signals.rs2_forward_exec = (rs2 == rd_buffer[1]) && (opcode == OP_R || opcode == OP_B);
-            //     temp_signals.mem_forward_exec = (rs2 == rd_buffer[1]) && (opcode == OP_S);
-            // end
 
-            // TODO: this is ugly, pls fix before decoupling div from crit path
-            if (exec_forward_result.rd == rs1 && rs1 != '0 && rd_buffer[1] != rs1 && exec_forward_result.rf_wr_en) begin
-                rs1_data_actual = exec_forward_result.rf_wr_data;
-            end else if (mem_forward_result.rd == rs1 && rs1 != '0 && rd_buffer[1] != rs1 && mem_forward_result.rf_wr_en) begin
-                rs1_data_actual = mem_forward_result.rf_wr_data;
-            end else if (rf_forward_result.rd == rs1 && rs1 != '0 && rf_forward_result.rf_wr_en) begin
-                rs1_data_actual = rf_forward_result.rf_wr_data;
-            end
-
-
-            if (exec_forward_result.rd == rs2 && rs2 != '0 && rd_buffer[1] != rs2 && exec_forward_result.rf_wr_en) begin
-                rs2_data_actual = exec_forward_result.rf_wr_data;
-            end else if (mem_forward_result.rd == rs2 && rs2 != '0 && rd_buffer[1] != rs2 && mem_forward_result.rf_wr_en) begin
-                rs2_data_actual = mem_forward_result.rf_wr_data;
-            end else if (rf_forward_result.rd == rs2 && rs2 != '0 && rf_forward_result.rf_wr_en) begin
-                rs2_data_actual = rf_forward_result.rf_wr_data;
-            end
 
 
 
             temp_signals.pc = instr_pc;
             temp_signals.instr = instr_data;
 
+            temp_signals.rs1 = rs1;
+            temp_signals.rs2 = rs2;
+            temp_signals.opcode = opcode;
+
             temp_signals.rd = rd;
-            temp_signals.alu_op_a = rs1_data_actual;
 
 
 
@@ -133,7 +99,7 @@ module decode (
                         instruction[11:8],
                         1'b0
                     };
-                    temp_signals.alu_op_b = rs2_data_actual;
+                    temp_signals.rs2_src = REG;
                     temp_signals.branch_instr = 1;
                     case (funct3)
                         BNE, BEQ: temp_signals.alu_op = ALU_SUB;
@@ -169,29 +135,24 @@ module decode (
                     temp_signals.mem_wr_en = 1;
                     imm = {{20{instruction[31]}}, instruction[31:25], instruction[11:7]};
                     temp_signals.alu_op = ALU_ADD;
-                    temp_signals.alu_op_b = imm;
+                    temp_signals.rs2_src = IMM;
 
                     case (funct3)
                         3'b000: begin  // SB — replicate byte, shift byte_en to correct lane
-                            // ctrl_signals.mem_byte_en <= 4'b0001 << alu_result[1:0];
                             temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_B;
-                            temp_signals.mem_wr_data  = {4{rs2_data_actual[7:0]}};
                         end
                         3'b001: begin  // SH — replicate halfword, shift byte_en
-                            // ctrl_signals.mem_byte_en <= 4'b0011 << {alu_result[1], 1'b0};
                             temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_H;
-                            temp_signals.mem_wr_data  = {2{rs2_data_actual[15:0]}};
                         end
                         3'b010: begin  // SW
                             temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_W;
-                            temp_signals.mem_byte_en  = 4'b1111;
-                            temp_signals.mem_wr_data  = rs2_data_actual;
+
                         end
                         default: ;
                     endcase
                 end
                 OP_R: begin
-                    temp_signals.alu_op_b = rs2_data_actual;
+                    temp_signals.rs2_src = REG;
                     if (funct7 == 7'b0000001) begin
                         // Handle M extension
                         case (funct3)
@@ -231,7 +192,7 @@ module decode (
                         OP_I_MEM: begin
                             temp_signals.alu_op = ALU_ADD;
                             temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
-                            temp_signals.alu_op_b = imm;
+                            temp_signals.rs2_src = IMM;
                             // Rf writeback needs to shift by addr[1:0]
                             case (funct3)
                                 3'b000:  temp_signals.load_mask = LB;  // LB
@@ -245,12 +206,13 @@ module decode (
                         OP_JALR: begin
                             temp_signals.alu_op = ALU_ADD;
                             temp_signals.rf_writeback = ALU_PC_INCR;
-                            next_pc = rs1_data_actual + imm;
+                            // TODO: handle this at the end
+                            next_pc = rs1_data + imm;
                             next_pc_en = 1;
                         end
                         OP_I_ALU: begin
                             temp_signals.rf_writeback = ALU_REG;
-                            temp_signals.alu_op_b = imm;
+                            temp_signals.rs2_src = IMM;
                             case (funct3)
                                 3'b000:  temp_signals.alu_op = ALU_ADD;
                                 3'b010:  temp_signals.alu_op = ALU_SLT;
@@ -261,7 +223,7 @@ module decode (
                                 3'b001:  temp_signals.alu_op = ALU_SLL;
                                 3'b101: begin
                                     temp_signals.alu_op   = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
-                                    temp_signals.alu_op_b = {27'b0, rs2};  // SHAMT taken directly
+                                    temp_signals.rs2_src = SHAMT;
                                 end
                                 default: ;
                             endcase
@@ -282,6 +244,7 @@ module decode (
                 end
                 default: ;
             endcase
+            temp_signals.imm = imm;
         end
     end
 
@@ -293,19 +256,19 @@ module decode (
         if (!rst_n) begin
             ctrl_signals <= '0;
             cycle_count  <= '0;
-            instr_count <= '0;
-            for (int i = 0; i < 3; i++) rd_buffer[i] <= '0;
+            instr_count  <= '0;
+            rd_buffer    <= '0;
+            rd_buffer_2  <= '0;
         end else begin
             // Propagate rd buffer values
-            for (int i = 2; i > 0; i--) rd_buffer[i] <= rd_buffer[i-1];
             ctrl_signals <= temp_signals;
-            rd_buffer[0] <= (!data_hazard && temp_signals.rf_writeback == ALU_MEM_ADDR_READ && !flush) ? rd : '0;
-            cycle_count  <= cycle_count + 1;
-            // instr_count <= (!data_hazard && !flush) ? instr_count + 1 : instr_count;
+            rd_buffer <= (!data_hazard && !jalr_load_hazard && temp_signals.rf_writeback == ALU_MEM_ADDR_READ && !flush) ? rd : '0;
+            rd_buffer_2 <= rd_buffer;
+            cycle_count <= cycle_count + 1;
             // Handle instruction counting
             if (flush) begin
                 instr_count <= instr_count - 1;
-            end else if (data_hazard) begin
+            end else if (data_hazard || jalr_load_hazard) begin
                 instr_count <= instr_count;
             end else begin
                 instr_count <= instr_count + 1;

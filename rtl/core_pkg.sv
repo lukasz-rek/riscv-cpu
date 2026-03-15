@@ -33,6 +33,13 @@ package core_pkg;
     } alu_op_t;
 
     typedef enum logic [2:0] {
+        REG_OFF,
+        REG,
+        IMM,
+        SHAMT  // preserve
+    } rs2_source_t;
+
+    typedef enum logic [2:0] {
         OFF,
         ALU_REG,
         ALU_MEM_ADDR_READ,
@@ -51,42 +58,7 @@ package core_pkg;
         LHU
     } load_mask_t;
 
-    typedef struct packed {
-        // Register ops
-        logic rf_wr_en;
-        logic [31:0] rf_wr_data;
-        logic [4:0] rs1;
-        logic [4:0] rs2;
-        logic [4:0] rd;
-        // Branching
-        logic branch_expects_zero;
-        logic branch_instr;
-        load_mask_t load_mask;
 
-        // Store
-        logic [31:0] mem_addr2;
-        logic [31:0] mem_wr_addr;
-        logic [31:0] mem_wr_data;
-        logic mem_wr_en;  // TODO: could be merged?
-        logic [3:0] mem_byte_en;
-        // Load
-        logic [1:0] load_offset;
-        logic rs1_forward_exec;
-        logic rs2_forward_exec;
-        logic mem_forward_exec;
-
-
-        // Alu
-        alu_op_t alu_op;
-        rf_writeback_t rf_writeback;
-        logic [31:0] alu_op_a;
-        logic [31:0] alu_op_b;
-
-        // Timekeeping/Debug
-        logic [31:0] instr;
-        logic [31:0] pc;  // Of instruction
-
-    } ctrl_signals_t;
 
 
     typedef enum logic [6:0] {
@@ -118,5 +90,42 @@ package core_pkg;
         BGEU = 3'b111
     } branch_cond_t;
 
+    typedef struct packed {
+        // Register ops
+        logic rf_wr_en;
+        logic [31:0] rf_wr_data;
+        logic [4:0] rs1;
+        logic [4:0] rs2;
+        logic [4:0] rd;
+        logic [31:0] imm;
+        rs2_source_t rs2_src;
 
+        // Branching
+        logic branch_expects_zero;
+        logic branch_instr;
+        load_mask_t load_mask;
+
+        // Store
+        logic [31:0] mem_addr2;
+        logic [31:0] mem_wr_addr;
+        logic [31:0] mem_wr_data;
+        logic mem_wr_en;  // TODO: could be merged?
+        logic [3:0] mem_byte_en;
+        // Load
+        logic [1:0] load_offset;
+        logic rs1_forward_exec;
+        logic rs2_forward_exec;
+        logic mem_forward_exec;
+
+
+        // Alu
+        alu_op_t alu_op;
+        rf_writeback_t rf_writeback;
+
+        // Timekeeping/Debug
+        logic [6:0] opcode;
+        logic [31:0] instr;
+        logic [31:0] pc;  // Of instruction
+
+    } ctrl_signals_t;
 endpackage

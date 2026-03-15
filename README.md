@@ -87,6 +87,25 @@ Correct operation validated. See README.md for run and reporting rules.
 Program completed at cycle 328144857 (sim time 16407243025)
 CPI was ~ 1.523858
 ```
+With a better look ahead CPI can become ~ 1.25
+```
+Starting coremark
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 268901552
+Total time (secs): 11
+Iterations/Sec   : 72
+Iterations       : 800
+Compiler version : GCC15.2.0
+Compiler flags   : -O3
+Memory location  : STACK
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xcc42
+Correct operation validated. See README.md for run and reporting rules.
+```
 
 # Build
 

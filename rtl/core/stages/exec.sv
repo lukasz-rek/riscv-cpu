@@ -11,9 +11,11 @@ module exec (
 
     output ctrl_signals_t forward_result,
 
-    /* verilator lint_off UNUSEDSIGNAL */
-    input ctrl_signals_t rf_forward_signals,
-    /* verilator lint_on UNUSEDSIGNAL */
+    // Register file stuff
+    output logic [ 4:0] rs1_addr,
+    output logic [ 4:0] rs2_addr,
+    input  logic [31:0] rs1_data,
+    input  logic [31:0] rs2_data,
 
     output logic flush,
     output logic [31:0] flush_pc
@@ -36,9 +38,21 @@ module exec (
     ctrl_signals_t temp_signals;
     assign forward_result = temp_signals;
 
+    assign rs1_addr = in_ctrl_signals.rs1;
+    assign rs2_addr = in_ctrl_signals.rs2;
+
+
     always_comb begin
-        alu_op_a = in_ctrl_signals.alu_op_a;
-        alu_op_b = in_ctrl_signals.alu_op_b;
+        // Assign correct operands
+        alu_op_a = rs1_data;
+
+        case (in_ctrl_signals.rs2_src)
+            REG: alu_op_b = rs2_data;
+            IMM: alu_op_b = in_ctrl_signals.imm;
+            SHAMT: alu_op_b = {27'b0, rs2_addr};
+            default: ;
+        endcase
+
         alu_op = in_ctrl_signals.alu_op;
         flush = 0;
         flush_pc = '0;
@@ -52,8 +66,13 @@ module exec (
                 temp_signals.mem_wr_addr = alu_result;
                 if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_B) begin
                     temp_signals.mem_byte_en = 4'b0001 << alu_result[1:0];
+                    temp_signals.mem_wr_data = {4{rs2_data[7:0]}};
                 end else if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_H) begin
                     temp_signals.mem_byte_en = 4'b0011 << {alu_result[1], 1'b0};
+                    temp_signals.mem_wr_data  = {2{rs2_data[15:0]}};
+                end else begin
+                    temp_signals.mem_wr_data = rs2_data;
+                    temp_signals.mem_byte_en  = 4'b1111;
                 end
             end
             ALU_MEM_ADDR_READ: begin

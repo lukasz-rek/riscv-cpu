@@ -14,7 +14,7 @@ module rf_writeback (
 );
 
     assign rf_wr_en = in_ctrl_signals.rf_wr_en;
-    assign wr_addr = in_ctrl_signals.rd;
+    assign wr_addr  = in_ctrl_signals.rd;
 
     always_comb begin
 

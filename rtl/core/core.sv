@@ -43,20 +43,32 @@ module core (
 
     // Register file signals and instance
     logic [4:0] rs1;
+    logic [4:0] rs1_id;
     logic [4:0] rs2;
     logic [4:0] rd;
     logic [31:0] rs1_data;
+    logic [31:0] rs1_id_data;
     logic [31:0] rs2_data;
     logic rf_wr_en;
     logic [31:0] rf_wr_data;
     register_file regfile_inst (
-        .clk(clk),
+        .clk  (clk),
         .rst_n(rst_n),
+
         .rs1_addr(rs1),
         .rs2_addr(rs2),
+        .rs1_id_addr(rs1_id),
+
         .rs1_data(rs1_data),
         .rs2_data(rs2_data),
-        .wr_en(rf_wr_en),
+        .rs1_id_data(rs1_id_data),
+
+        .exec_forward_result(ex_id_frwrd_ctrl),
+        .mem_forward_result (ex_mem_ctrl),
+        .rf_forward_result  (rd_if_forward_ctrl),
+
+
+        .wr_en  (rf_wr_en),
         .wr_addr(rd),
         .wr_data(rf_wr_data)
     );
@@ -75,21 +87,18 @@ module core (
 
         .instr_data(if_id_instr),
         .instr_pc  (if_id_pc),
+        .rs1_addr  (rs1_id),
+        .rs1_data  (rs1_id_data),
 
         .next_pc(next_pc),
         .next_pc_en(next_pc_en),
 
-        .rs1_addr(rs1),
-        .rs2_addr(rs2),
-        .rs1_data(rs1_data),
-        .rs2_data(rs2_data),
+
 
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
 
-        .exec_forward_result(ex_id_frwrd_ctrl),
-        .mem_forward_result(ex_mem_ctrl),
-        .rf_forward_result(rd_if_forward_ctrl),
+
 
         .ctrl_signals(id_ex_ctrl)
 
@@ -107,8 +116,10 @@ module core (
         .out_ctrl_signals(ex_mem_ctrl),
 
         .forward_result(ex_id_frwrd_ctrl),
-
-        .rf_forward_signals(rd_if_forward_ctrl),
+        .rs1_addr(rs1),
+        .rs2_addr(rs2),
+        .rs1_data(rs1_data),
+        .rs2_data(rs2_data),
 
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc)
