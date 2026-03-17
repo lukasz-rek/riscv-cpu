@@ -3,7 +3,8 @@ rtl/core_pkg.sv
 
 // Actual rtl files then
 // First core
-rtl/core/alu.sv
+rtl/core/alu/alu.sv
+rtl/core/alu/division_alu.sv
 rtl/core/register_file.sv
 
 
