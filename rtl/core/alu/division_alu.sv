@@ -37,7 +37,7 @@ module division_alu (
 
         z = (d * q) + s
     */
-    logic signed [64:0] remainder; // s, but this is also the working sum;
+    logic signed [64:0] remainder;  // s, but this is also the working sum;
     logic signed [64:0] remainder_q;
 
     logic signed [64:0] divisor;  // d
@@ -64,9 +64,9 @@ module division_alu (
 
     always_latch begin
         if (running && !signed_op && state_count == 0) begin
-            divisor = {1'b0, b, 32'b0};
+            divisor   = {1'b0, b, 32'b0};
             divisor_n = (divisor ^ '1) + 1;
-            overflow = (b == '0) ? '1 : '0;
+            overflow  = (b == '0) ? '1 : '0;
         end
     end
 
@@ -76,8 +76,7 @@ module division_alu (
         remainder = '0;
         if (running && signed_op) begin
 
-        end else
-        if (running) begin
+        end else if (running) begin
             result_en = 0;
             if (state_count < 33 && state_count > 0 && !overflow) begin
                 // Middle
@@ -85,12 +84,12 @@ module division_alu (
             end else begin
                 // Output result and reset
                 result_en = 1;
-                if (overflow)
-                    result = '1;
-                else if (alu_op == ALU_DIVU)
-                    result = quotient_q;
+                if (overflow) result = (alu_op == ALU_REMU) ? a : '1;
+                else if (alu_op == ALU_DIVU) result = quotient_q;
                 else
-                    result = (quotient_digit_q) ? remainder_q[63:32] : ((remainder_q[63:32]) << 1) + 1;
+                    result = ($signed(
+                        remainder_q[63:32]
+                    ) >= 0) ? remainder_q[63:32] : remainder_q[63:32] + b;
 
             end
         end else begin
