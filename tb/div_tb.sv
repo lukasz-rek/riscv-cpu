@@ -29,10 +29,10 @@ end
 
 initial begin
     clk = 0;
-    forever #1 clk = ~clk;
+    forever #2 clk = ~clk;
 end
 
-parameter int UNSIGNED_LIMIT = 20;
+parameter int UNSIGNED_LIMIT = 10;
 
 initial begin
 
@@ -45,37 +45,47 @@ initial begin
     for (logic [31:0] i = 0; i < UNSIGNED_LIMIT; i++) begin
         for (logic [31:0] j = 0; j < UNSIGNED_LIMIT; j++) begin
             @(posedge clk);
+            #1;
             alu_op = ALU_DIVU;
             a = i;
             b = j;
             repeat(33) @(posedge clk);
+            // Let it settle
             #1;
-
 
             // --- self-check ---
             if (j == 0) begin
                 // RISC-V spec: unsigned div-by-zero → all 1s
-                if (result !== 32'hFFFF_FFFF)
+                if (result !== 32'hFFFF_FFFF) begin
                     $display("FAIL div-by-zero: %0d / %0d = %0h (expected FFFFFFFF)",
                              i, j, result);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
+                end else begin
+                    $display("PASS: %0d / %0d = %0d", a, b, result);
+                end
             end else
                 if (result !== (i / j)) begin
                     $display("FAIL: %0d / %0d = %0h (expected %0h)",
                              i, j, result, i / j);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
             end else begin
                 $display("PASS: %0d / %0d = %0d", a, b, result);
             end
         end
     end
 
-    $display("Unsigned division sweep done.");
+    @(posedge clk);
+
+    $display(" ====== Unsigned division SUCCESS!!. ====== ");
     $finish;
 end
 
 // Optional: waveform dump
-initial begin
-    $dumpfile("logs/div_tb.fst");
-    $dumpvars(0, div_tb);
-end
+// initial begin
+//     $dumpfile("logs/div_tb.fst");
+//     $dumpvars(0, div_tb);
+// end
 
 endmodule

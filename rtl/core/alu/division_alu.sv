@@ -63,12 +63,11 @@ module division_alu (
 
 
     always_latch begin
-        overflow = 0;
-        // if (running && !signed_op && state_count == 0) begin
-        //     divisor = {1'b0, b, 32'b0};
-        //     divisor_n = (divisor ^ '1) + 1;
-        //     overflow = (b == '0) ? '1 : '0;
-        // end
+        if (running && !signed_op && state_count == 0) begin
+            divisor = {1'b0, b, 32'b0};
+            divisor_n = (divisor ^ '1) + 1;
+            overflow = (b == '0) ? '1 : '0;
+        end
     end
 
     always_comb begin
@@ -79,6 +78,7 @@ module division_alu (
 
         end else
         if (running) begin
+            result_en = 0;
             if (state_count < 33 && state_count > 0 && !overflow) begin
                 // Middle
                 remainder = (quotient_digit_q) ? (remainder_q << 1) + divisor_n : (remainder_q << 1) + divisor;
@@ -112,8 +112,8 @@ module division_alu (
                 quotient_digit_q <= '1;
                 quotient_q <= '0;
             end else if (state_count < 33 && state_count > 0) begin
-                quotient_digit_q <= (remainder > 0);
-                quotient_q <= {quotient_q[30:0], (remainder > 0)};
+                quotient_digit_q <= (remainder >= 0);
+                quotient_q <= {quotient_q[30:0], (remainder >= 0)};
                 remainder_q <= remainder;
             end else begin
                 state_count <= 0;
