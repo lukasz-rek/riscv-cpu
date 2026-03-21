@@ -69,10 +69,10 @@ module exec (
                     temp_signals.mem_wr_data = {4{rs2_data[7:0]}};
                 end else if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_H) begin
                     temp_signals.mem_byte_en = 4'b0011 << {alu_result[1], 1'b0};
-                    temp_signals.mem_wr_data  = {2{rs2_data[15:0]}};
+                    temp_signals.mem_wr_data = {2{rs2_data[15:0]}};
                 end else begin
                     temp_signals.mem_wr_data = rs2_data;
-                    temp_signals.mem_byte_en  = 4'b1111;
+                    temp_signals.mem_byte_en = 4'b1111;
                 end
             end
             ALU_MEM_ADDR_READ: begin

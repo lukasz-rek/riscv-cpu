@@ -4,7 +4,7 @@ TB_FILES := $(wildcard tb/*.sv)
 VERILATOR_FLAGS = -Wall -Wno-fatal --x-assign fast --x-initial fast
 # Note to myself, never use threads, even 2 seem to kill perf
 VERILATOR_FLAGS += -CFLAGS "-O3 -march=native"
-# VERILATOR_FLAGS +=  --trace-structs --trace-fst --trace
+VERILATOR_FLAGS +=  --trace-structs --trace-fst --trace
 TOP_MODULE_NAME = top
 
 # Stuff for copying over bitstream

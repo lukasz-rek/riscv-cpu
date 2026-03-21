@@ -2,6 +2,11 @@
 import core_pkg::*;
 /* verilator lint_on IMPORTSTAR */
 
+typedef enum logic [1:0] {
+    DIV_OFF,
+    MID,
+    FINAL
+} div_states_t;
 
 
 module division_alu (
@@ -12,8 +17,109 @@ module division_alu (
     input logic [31:0] b,
     input alu_op_t alu_op,
 
-    output logic [31:0] result
+    output logic [31:0] result,
+    output logic result_en
 );
-    assign result = (b == '0) ? '1 : a / b;
+    /*
+        Performs nonrestoring division. Needs at most 32 cycles + 1 for adjusting sign at the end.
+        It it's unsigned, it's simple, for unsigned we gotta try some BSD tricks
+
+        1 - When correct alu_op gets set then
+            * Load d and its negative from op_b
+            * Load z into remainder latch as it will be our working variable
+            * Check for overflow
+        2 - Middle round 1-32:
+
+        3 - Final 33:
+            * Reset counter
+            * Correct remaineder if needed
+            * output
+
+        z = (d * q) + s
+    */
+    logic signed [64:0] remainder; // s, but this is also the working sum;
+    logic signed [64:0] remainder_q;
+
+    logic signed [64:0] divisor;  // d
+    logic signed [64:0] divisor_n;
+
+    // logic [31:0] dividend; // z
+    logic [31:0] quotient_q;
+
+    // 1 means we subtract which is the initial operation
+    logic quotient_digit_q;
+
+    // We need 32 cycles of ops + 2 for adjustments
+    logic [5:0] state_count;
+    logic running;
+    logic signed_op;
+    logic overflow;
+
+
+    assign running = (alu_op == ALU_DIVU || alu_op == ALU_REMU
+        || alu_op == ALU_DIV || alu_op == ALU_REM) ? 1 : 0;
+
+    assign signed_op = (alu_op == ALU_DIV || alu_op == ALU_REM);
+
+
+    always_latch begin
+        overflow = 0;
+        // if (running && !signed_op && state_count == 0) begin
+        //     divisor = {1'b0, b, 32'b0};
+        //     divisor_n = (divisor ^ '1) + 1;
+        //     overflow = (b == '0) ? '1 : '0;
+        // end
+    end
+
+    always_comb begin
+        result_en = 0;
+        result = '0;
+        remainder = '0;
+        if (running && signed_op) begin
+
+        end else
+        if (running) begin
+            if (state_count < 33 && state_count > 0 && !overflow) begin
+                // Middle
+                remainder = (quotient_digit_q) ? (remainder_q << 1) + divisor_n : (remainder_q << 1) + divisor;
+            end else begin
+                // Output result and reset
+                result_en = 1;
+                if (overflow)
+                    result = '1;
+                else if (alu_op == ALU_DIVU)
+                    result = quotient_q;
+                else
+                    result = (quotient_digit_q) ? remainder_q[63:32] : ((remainder_q[63:32]) << 1) + 1;
+
+            end
+        end else begin
+
+        end
+    end
+
+
+    always_ff @(posedge clk) begin
+        if (!rst_n) begin
+            state_count <= '0;
+            quotient_digit_q <= '1;
+            remainder_q <= '0;
+            quotient_q <= '0;
+        end else if (running) begin
+            state_count <= state_count + 1;
+            if (state_count == 0) begin
+                remainder_q <= {33'b0, a};
+                quotient_digit_q <= '1;
+                quotient_q <= '0;
+            end else if (state_count < 33 && state_count > 0) begin
+                quotient_digit_q <= (remainder > 0);
+                quotient_q <= {quotient_q[30:0], (remainder > 0)};
+                remainder_q <= remainder;
+            end else begin
+                state_count <= 0;
+            end
+        end
+
+    end
 
 endmodule

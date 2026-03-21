@@ -1,5 +1,8 @@
 module div_tb;
 
+/* verilator lint_off IMPORTSTAR */
+import core_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 logic clk;
 logic rst_n;
@@ -29,23 +32,25 @@ initial begin
     forever #1 clk = ~clk;
 end
 
-parameter int UNSIGNED_LIMIT = 5; // test 0..999 × 0..999
+parameter int UNSIGNED_LIMIT = 20;
 
 initial begin
 
     $display("Starting");
-    // Wait for reset to deassert
+
     @(posedge rst_n);
     repeat(2) @(posedge clk);
 
-    alu_op = ALU_DIVU; // unsigned divide opcode
 
     for (logic [31:0] i = 0; i < UNSIGNED_LIMIT; i++) begin
         for (logic [31:0] j = 0; j < UNSIGNED_LIMIT; j++) begin
+            @(posedge clk);
+            alu_op = ALU_DIVU;
             a = i;
             b = j;
-            @(posedge clk); // let DUT compute (assumes 1-cycle latency)
-            #1;             // small settle time before sampling
+            repeat(33) @(posedge clk);
+            #1;
+
 
             // --- self-check ---
             if (j == 0) begin
@@ -53,16 +58,24 @@ initial begin
                 if (result !== 32'hFFFF_FFFF)
                     $display("FAIL div-by-zero: %0d / %0d = %0h (expected FFFFFFFF)",
                              i, j, result);
-            end else begin
-                if (result !== (i / j))
+            end else
+                if (result !== (i / j)) begin
                     $display("FAIL: %0d / %0d = %0h (expected %0h)",
                              i, j, result, i / j);
+            end else begin
+                $display("PASS: %0d / %0d = %0d", a, b, result);
             end
         end
     end
 
     $display("Unsigned division sweep done.");
     $finish;
+end
+
+// Optional: waveform dump
+initial begin
+    $dumpfile("logs/div_tb.fst");
+    $dumpvars(0, div_tb);
 end
 
 endmodule
