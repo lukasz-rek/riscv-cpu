@@ -19,6 +19,9 @@ module decode (
     input logic flush,
     input logic [31:0] flush_pc,
 
+    // Sometimes exec might force delays due to multi-cycle instr
+    input logic exec_stall,
+
     output ctrl_signals_t ctrl_signals
 );
 
@@ -73,6 +76,10 @@ module decode (
             temp_signals = '0;
             next_pc_en = (rst_n) ? '1 : '0;
             next_pc = instr_pc;
+        end else if (exec_stall) begin
+            temp_signals = ctrl_signals;  // We want to keep same instruction
+            next_pc_en = 1;
+            next_pc = ctrl_signals.pc + 4;
         end else begin
             temp_signals = '0;
 
@@ -268,7 +275,7 @@ module decode (
             // Handle instruction counting
             if (flush) begin
                 instr_count <= instr_count - 1;
-            end else if (data_hazard || jalr_load_hazard) begin
+            end else if (data_hazard || jalr_load_hazard || exec_stall) begin
                 instr_count <= instr_count;
             end else begin
                 instr_count <= instr_count + 1;

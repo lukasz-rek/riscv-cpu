@@ -1,5 +1,8 @@
 module div_tb;
 
+/* verilator lint_off IMPORTSTAR */
+import core_pkg::*;
+/* verilator lint_on IMPORTSTAR */
 
 logic clk;
 logic rst_n;
@@ -26,43 +29,155 @@ end
 
 initial begin
     clk = 0;
-    forever #1 clk = ~clk;
+    forever #2 clk = ~clk;
 end
 
-parameter int UNSIGNED_LIMIT = 5; // test 0..999 × 0..999
+parameter int UNSIGNED_LIMIT = 100;
 
 initial begin
 
     $display("Starting");
-    // Wait for reset to deassert
+
     @(posedge rst_n);
     repeat(2) @(posedge clk);
 
-    alu_op = ALU_DIVU; // unsigned divide opcode
 
     for (logic [31:0] i = 0; i < UNSIGNED_LIMIT; i++) begin
         for (logic [31:0] j = 0; j < UNSIGNED_LIMIT; j++) begin
+            @(posedge clk);
+            #1;
+            alu_op = ALU_DIVU;
             a = i;
             b = j;
-            @(posedge clk); // let DUT compute (assumes 1-cycle latency)
-            #1;             // small settle time before sampling
+            repeat(33) @(posedge clk);
+            // Let it settle
+            #1;
 
             // --- self-check ---
             if (j == 0) begin
                 // RISC-V spec: unsigned div-by-zero → all 1s
-                if (result !== 32'hFFFF_FFFF)
+                if (result !== 32'hFFFF_FFFF) begin
                     $display("FAIL div-by-zero: %0d / %0d = %0h (expected FFFFFFFF)",
                              i, j, result);
-            end else begin
-                if (result !== (i / j))
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
+                end
+            end else
+                if (result !== (i / j)) begin
                     $display("FAIL: %0d / %0d = %0h (expected %0h)",
                              i, j, result, i / j);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
             end
         end
     end
 
-    $display("Unsigned division sweep done.");
+    $display(" ====== Unsigned division DONE!!. ====== ");
+
+    for (logic [31:0] i = 0; i < UNSIGNED_LIMIT; i++) begin
+        for (logic [31:0] j = 0; j < UNSIGNED_LIMIT; j++) begin
+            @(posedge clk);
+            #1;
+            alu_op = ALU_REMU;
+            a = i;
+            b = j;
+            repeat(33) @(posedge clk);
+            // Let it settle
+            #1;
+
+            // --- self-check ---
+            if (j == 0) begin
+
+                if (result !== a) begin
+                    $display("FAIL div-by-zero: %0d / %0d = %0h (expected %0d)",
+                             i, j, result, i);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
+                end
+            end else
+                if (result !== (i % j)) begin
+                    $display("FAIL: %0d / %0d = %0h (expected %0h)",
+                             i, j, result, i % j);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
+            end
+        end
+    end
+
+
+    $display(" ====== Unsigned remainder DONE!!. ====== ");
+
+    for (int i = -UNSIGNED_LIMIT; i < UNSIGNED_LIMIT; i++) begin
+        for (int j = -UNSIGNED_LIMIT; j < UNSIGNED_LIMIT; j++) begin
+            @(posedge clk);
+            #1;
+            alu_op = ALU_DIV;
+            a = i;
+            b = j;
+            repeat(33) @(posedge clk);
+            // Let it settle
+            #3;
+
+            // --- self-check ---
+            if (j == 0) begin
+                // RISC-V spec: unsigned div-by-zero → all 1s
+                if (result !== 32'hFFFF_FFFF) begin
+                    $display("FAIL div-by-zero: %0d / %0d = %0h (expected FFFFFFFF)",
+                             i, j, result);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
+                end
+            end else
+                if ($signed(result) !== ($signed(i) / $signed(j))) begin
+                    $display("FAIL: %0d / %0d = %0d (expected %0d)",
+                             i, j, result, i / j);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
+            end
+        end
+    end
+
+    $display(" ====== Signed division DONE!!. ====== ");
+
+    for (int i = -UNSIGNED_LIMIT; i < UNSIGNED_LIMIT; i++) begin
+        for (int j = -UNSIGNED_LIMIT; j < UNSIGNED_LIMIT; j++) begin
+            @(posedge clk);
+            #1;
+            alu_op = ALU_REM;
+            a = i;
+            b = j;
+            repeat(33) @(posedge clk);
+            // Let it settle
+            #3;
+
+            // --- self-check ---
+            if (j == 0) begin
+                if (result !== a) begin
+                    $display("FAIL div-by-zero: %0d / %0d = %0h (expected FFFFFFFF)",
+                             i, j, result);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
+                end
+            end else
+                if ($signed(result) !== ($signed(i) % $signed(j))) begin
+                    $display("FAIL: %0d / %0d = %0d (expected %0d)",
+                             i, j, result, i % j);
+                    i = UNSIGNED_LIMIT + 1;
+                    j = UNSIGNED_LIMIT + 1;
+            end
+        end
+    end
+
+    $display(" ====== Signed remainder DONE!!. ====== ");
+
+
     $finish;
 end
+
+// Optional: waveform dump
+// initial begin
+//     $dumpfile("logs/div_tb.fst");
+//     $dumpvars(0, div_tb);
+// end
 
 endmodule

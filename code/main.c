@@ -25,10 +25,10 @@ int main() {
 
     __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle2));
 
-    // int a = 110;
-    // int b = 55;
+    int a = -8;
+    int b = -3;
 
-    // a /= b;
+
     // int i = 6;
     // // if += 1;
     // if ( UART_TX == 1) {
@@ -36,8 +36,13 @@ int main() {
     // } else {
     //     UART_TX = 'n';
     // }
-
-    print_hex(cycle2 - cycle1);
+    print_hex(a);
+    uart_putc('\n');
+    print_hex(b);
+    uart_putc('\n');
+    a /= b;
+    print_hex(a);
+    uart_putc('\n');
     uart_putc('a');
     uart_putc('b');
     uart_putc('c');
