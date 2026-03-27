@@ -40,7 +40,7 @@ module exec (
     logic [31:0] div_alu_result;
     logic alu_div_active;
     division_alu division_alu (
-        .clk(clk),
+        .clk  (clk),
         .rst_n(rst_n),
 
         .a(alu_op_a),
@@ -114,7 +114,7 @@ module exec (
 
         // Handle exec stalls
         if (alu_div_active && !div_result_en) begin
-            exec_stall = 1;
+            exec_stall   = 1;
             temp_signals = '0;
         end else if (alu_div_active && div_result_en) begin
             // We have a result from division, so we can move forward

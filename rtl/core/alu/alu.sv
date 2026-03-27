@@ -33,7 +33,7 @@ module alu (
             ALU_MULHSU: result = 32'((64'($signed(a)) * 64'(b)) >> 32);
             ALU_MULHU: result = 32'((64'(a) * 64'(b)) >> 32);
 
-            default:  result = 32'h0;
+            default: result = 32'h0;
         endcase
     end
 

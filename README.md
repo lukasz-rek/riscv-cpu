@@ -106,6 +106,26 @@ seedcrc          : 0xe9f5
 [0]crcfinal      : 0xcc42
 Correct operation validated. See README.md for run and reporting rules.
 ```
+With proper nonrestoring division we get 75 MHz and 
+```
+Starting coremark
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 806703110
+Total time (secs): 10
+Iterations/Sec   : 240
+Iterations       : 2400
+Compiler version : GCC15.2.0
+Compiler flags   : -O3
+Memory location  : STACK
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0x382f
+Correct operation validated. See README.md for run and reporting rules.
+```
+So now cpu is only x 156 times slower :)
 
 # Build
 
