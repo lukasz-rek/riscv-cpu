@@ -100,7 +100,7 @@ module division_alu (
                 rem_shifted = remainder_q << 1;
                 quotient_digit = (rem_shifted[64] == divisor[64]);
                 remainder = (rem_shifted[64] == divisor[64]) ? rem_shifted + divisor_n : rem_shifted + divisor;
-            end else begin
+            end else if (state_count != 0) begin
                 result_en = 1;
                 if (overflow) result = (alu_op == ALU_REM) ? a : '1;
                 else if (alu_op == ALU_DIV) begin
@@ -134,7 +134,7 @@ module division_alu (
                 // Middle
                 remainder = (quotient_digit_q) ? (remainder_q << 1) + divisor_n : (remainder_q << 1) + divisor;
                 quotient_digit = (remainder >= 0);
-            end else begin
+            end else if (state_count != 0) begin
                 // Output result and reset
                 result_en = 1;
                 if (overflow) result = (alu_op == ALU_REMU) ? a : '1;
@@ -151,7 +151,7 @@ module division_alu (
     end
 
 
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state_count <= '0;
             quotient_digit_q <= '1;

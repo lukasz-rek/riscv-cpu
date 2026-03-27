@@ -80,6 +80,7 @@ module core (
     logic ex_id_flush;
     ctrl_signals_t rd_if_forward_ctrl;
     logic [31:0] ex_id_flush_pc;
+    logic exec_stall;
 
     decode decode_stage (
         .clk  (clk),
@@ -98,7 +99,7 @@ module core (
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
 
-
+        .exec_stall(exec_stall),
 
         .ctrl_signals(id_ex_ctrl)
 
@@ -122,7 +123,8 @@ module core (
         .rs2_data(rs2_data),
 
         .flush(ex_id_flush),
-        .flush_pc(ex_id_flush_pc)
+        .flush_pc(ex_id_flush_pc),
+        .exec_stall(exec_stall)
     );
 
     ctrl_signals_t mem_rf_ctrl;
