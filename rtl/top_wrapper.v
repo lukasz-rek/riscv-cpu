@@ -6,7 +6,7 @@ module top_wrapper (
 
     top top_inst (
         .clk(clk),
-        .rst_n(1'b1),
+        .rst_n(rst_n),
         .uart_tx(uart_tx)
     );
 

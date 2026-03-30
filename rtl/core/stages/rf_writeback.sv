@@ -17,7 +17,7 @@ module rf_writeback (
     assign wr_addr  = in_ctrl_signals.rd;
 
     always_comb begin
-
+        wr_data = '0;
         if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_READ) begin
             case (in_ctrl_signals.load_mask)
                 LB:

@@ -62,7 +62,7 @@ module top #(
 
 
     uart_tx #(
-        .CLK_FREQ(75_000_000),
+        .CLK_FREQ(58_000_000),
         .BAUD(115200)
     ) uart (
         .clk(clk),

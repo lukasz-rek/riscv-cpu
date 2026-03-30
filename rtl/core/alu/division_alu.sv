@@ -72,20 +72,20 @@ module division_alu (
     assign signed_op = (alu_op == ALU_DIV || alu_op == ALU_REM);
 
 
-    always_latch begin
-        if (state_count == 0) zero_detected = 0;
-        else if (remainder == 0 && MIDDLE) zero_detected = 1;
-        if (running && !signed_op && state_count == 0) begin
-            divisor   = {1'b0, b, 32'b0};
-            divisor_n = (divisor ^ '1) + 1;
-            overflow  = (b == '0);
-        end else if (running && signed_op && state_count == 0) begin
-            divisor   = {b[31], b, 32'b0};
-            divisor_n = (divisor ^ '1) + 1;
-            // Only when dividing over zero or lowest negative number over -1
-            overflow  = (b == '0 || (a == 32'h8000_0000 && b == '1));
-        end
-    end
+    // always_latch begin
+    //     if (state_count == 0) zero_detected = 0;
+    //     else if (remainder == 0 && MIDDLE) zero_detected = 1;
+    //     if (running && !signed_op && state_count == 0) begin
+    //         divisor   = {1'b0, b, 32'b0};
+    //         divisor_n = (divisor ^ '1) + 1;
+    //         overflow  = (b == '0);
+    //     end else if (running && signed_op && state_count == 0) begin
+    //         divisor   = {b[31], b, 32'b0};
+    //         divisor_n = (divisor ^ '1) + 1;
+    //         // Only when dividing over zero or lowest negative number over -1
+    //         overflow  = (b == '0 || (a == 32'h8000_0000 && b == '1));
+    //     end
+    // end
 
     always_comb begin
         result_en = 0;
@@ -157,21 +157,35 @@ module division_alu (
             quotient_digit_q <= '1;
             remainder_q <= '0;
             quotient_q <= '0;
+            divisor <= '0;
+            divisor_n <= '0;
+            overflow <= '0;
+            zero_detected <= '0;
         end else if (running) begin
             state_count <= state_count + 1;
             if (state_count == 0) begin
                 remainder_q <= (signed_op) ? {{33{a[31]}}, a} : {33'b0, a};
                 quotient_digit_q <= '1;
                 quotient_q <= '0;
+                zero_detected <= '0;
+                if (signed_op) begin
+                    divisor   <= {b[31], b, 32'b0};
+                    divisor_n <= ({b[31], b, 32'b0} ^ '1) + 1;
+                    overflow  <= (b == '0 || (a == 32'h8000_0000 && b == '1));
+                end else begin
+                    divisor   <= {1'b0, b, 32'b0};
+                    divisor_n <= ({1'b0, b, 32'b0} ^ '1) + 1;
+                    overflow  <= (b == '0);
+                end
             end else if (MIDDLE) begin
                 quotient_digit_q <= quotient_digit;
                 quotient_q <= {quotient_q[30:0], quotient_digit};
                 remainder_q <= remainder;
+                if (remainder == 0) zero_detected <= 1;
             end else begin
                 state_count <= 0;
             end
         end
-
     end
 
 endmodule

@@ -65,8 +65,10 @@ module decode (
 
     // First actually decode the signals
     always_comb begin
-        rs1_addr   = rs1;
+        rs1_addr = rs1;
         next_pc_en = 0;
+        imm = '0;
+        next_pc = '0;
         // Check if we gotta stall
         if (flush) begin
             temp_signals = '0;

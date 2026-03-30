@@ -62,6 +62,7 @@ module exec (
     always_comb begin
         // Assign correct operands
         alu_op_a = rs1_data;
+        alu_op_b = '0;
 
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;
