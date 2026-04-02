@@ -1,6 +1,6 @@
 module top #(
-    // parameter INIT_FILE = "/home/luki/Projekty/cpu/code/build/program.hex"
-    parameter INIT_FILE = "/home/luki/Projekty/cpu/code/coremark/build/coremark.hex"
+    parameter INIT_FILE = "code/build/program.hex"
+    // parameter INIT_FILE = "code/coremark/build/coremark.hex"
 ) (
     input  logic clk,
     input  logic rst_n,
