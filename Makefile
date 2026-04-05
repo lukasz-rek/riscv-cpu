@@ -5,7 +5,7 @@ VERILATOR_FLAGS = -Wall -Wno-fatal --x-assign fast --x-initial fast
 # Note to myself, never use threads, even 2 seem to kill perf
 VERILATOR_FLAGS += -CFLAGS "-O3 -march=native"
 # VERILATOR_FLAGS +=  --trace-structs --trace-fst --trace
-TOP_MODULE_NAME = top
+TOP_MODULE_NAME = top_wrapper
 
 # Stuff for copying over bitstream
 VIVADO_IMPL_DIR := $(HOME)/Projekty/cpu/vivado_proj/riscv_core.runs/impl_1

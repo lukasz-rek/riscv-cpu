@@ -1,5 +1,6 @@
 // Packages first
 rtl/core_pkg.sv
+rtl/axi/axi_if.sv
 
 // Actual rtl files then
 // First core
@@ -19,3 +20,4 @@ rtl/memory.sv
 rtl/uart_tx.sv
 
 rtl/top.sv
+rtl/top_wrapper.v
