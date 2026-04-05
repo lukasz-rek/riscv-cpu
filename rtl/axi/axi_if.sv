@@ -6,50 +6,50 @@ interface axi_if #(
 ) ();
     /* verilator lint_off UNUSEDSIGNAL */
     // Write Address
-    logic [  ADDR_W-1:0] awaddr;
-    logic [         7:0] awlen;
-    logic [         2:0] awsize;
-    logic [         1:0] awburst;
-    logic                awlock;
-    logic [         3:0] awcache;
-    logic [         2:0] awprot;
-    logic                awvalid;
-    logic                awready;
-    logic [    ID_W-1:0] awid;
-    logic [   QOS_W-1:0] awqos;
-    logic                awuser;
+    wire [  ADDR_W-1:0] awaddr;
+    wire [         7:0] awlen;
+    wire [         2:0] awsize;
+    wire [         1:0] awburst;
+    wire                awlock;
+    wire [         3:0] awcache;
+    wire [         2:0] awprot;
+    wire                awvalid;
+    wire                awready;
+    wire [    ID_W-1:0] awid;
+    wire [   QOS_W-1:0] awqos;
+    wire                awuser;
     // Write Data
-    logic [  DATA_W-1:0] wdata;
-    logic [DATA_W/8-1:0] wstrb;
-    logic                wlast;
-    logic                wvalid;
-    logic                wready;
+    wire [  DATA_W-1:0] wdata;
+    wire [DATA_W/8-1:0] wstrb;
+    wire                wlast;
+    wire                wvalid;
+    wire                wready;
     // Write Response
-    logic [         1:0] bresp;
-    logic                bvalid;
-    logic                bready;
-    logic [    ID_W-1:0] bid;
+    wire [         1:0] bresp;
+    wire                bvalid;
+    wire                bready;
+    wire [    ID_W-1:0] bid;
     /* verilator lint_on UNUSEDSIGNAL */
     // Read Address
-    logic [  ADDR_W-1:0] araddr;
-    logic [         7:0] arlen;
-    logic [         2:0] arsize;
-    logic [         1:0] arburst;
-    logic                arlock;
-    logic [         3:0] arcache;
-    logic [         2:0] arprot;
-    logic                arvalid;
-    logic                arready;
-    logic [    ID_W-1:0] arid;
-    logic [   QOS_W-1:0] arqos;
-    logic                aruser;
+    wire [  ADDR_W-1:0] araddr;
+    wire [         7:0] arlen;
+    wire [         2:0] arsize;
+    wire [         1:0] arburst;
+    wire                arlock;
+    wire [         3:0] arcache;
+    wire [         2:0] arprot;
+    wire                arvalid;
+    wire                arready;
+    wire [    ID_W-1:0] arid;
+    wire [   QOS_W-1:0] arqos;
+    wire                aruser;
     // Read Data
-    logic [  DATA_W-1:0] rdata;
-    logic [         1:0] rresp;
-    logic                rvalid;
-    logic                rlast;
-    logic                rready;
-    logic [    ID_W-1:0] rid;
+    wire [  DATA_W-1:0] rdata;
+    wire [         1:0] rresp;
+    wire                rvalid;
+    wire                rlast;
+    wire                rready;
+    wire [    ID_W-1:0] rid;
 
     // Tie off currently unused signals
 

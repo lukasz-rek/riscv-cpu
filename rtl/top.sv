@@ -61,6 +61,7 @@ module top #(
                 S_UART: begin
                     // Send byte, increment if possible
                     if (!fifo_full) begin
+                        uart_en <= 1;
                         case(byte_idx)
                             2'd0: out_data <= rdata_buf[7:0];
                             2'd1: out_data <= rdata_buf[15:8];
