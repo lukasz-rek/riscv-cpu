@@ -1,13 +1,13 @@
 This is just a riscv32 + extensions CPU I'm making for (sometimes questionable) fun. It is pipelined now and while the initial goal was to try out some Out of Order execution/Tomasulo stuff I'm going on a sidequest to port linux or other programs to this thing and just seeing where I end up.
 
 Stuff still to be done before linux ready:
-- [ ] Add proper resets from kv260 host
-- [ ] Move memory from BRAM into DDR via axi
+- [x] Add proper resets from kv260 host
+- [ ] Move memory from BRAM into DDR via axi (update: works in tests, needs actual integration)
   - [ ] Will probably require some smol cache to not tank perf
 - [ ] Tidy up UART interface
 - [ ] Implement A extension
 - [ ] Implement MMU
-- [ ] Finalize pick for linux version (got some ideas)
+- [x] Finalize pick for linux version (got some ideas) -> Buildroot likely
 
 # Current stats
 
