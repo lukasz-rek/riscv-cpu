@@ -13,7 +13,7 @@ module tb_axi_read;
 
     // ── Flat AXI wires (matched to VIP's port set) ──
     // Read Address
-    wire [31:0] axi_araddr;
+    wire [35:0] axi_araddr;
     wire [ 7:0] axi_arlen;
     wire [ 2:0] axi_arsize;
     wire [ 1:0] axi_arburst;
@@ -30,7 +30,7 @@ module tb_axi_read;
     wire        axi_rlast;
     wire        axi_rready;
     // Write Address
-    wire [31:0] axi_awaddr;
+    wire [35:0] axi_awaddr;
     wire [ 7:0] axi_awlen;
     wire [ 2:0] axi_awsize;
     wire [ 1:0] axi_awburst;
@@ -160,10 +160,10 @@ module tb_axi_read;
         slv_agent.start_slave();
 
         // Preload test data
-        slv_agent.mem_model.backdoor_memory_write(32'h0000_0000, 32'h6C6C6548, 4'hF); // "Hell"
-        slv_agent.mem_model.backdoor_memory_write(32'h0000_0004, 32'h7266206F, 4'hF); // "o fr"
-        slv_agent.mem_model.backdoor_memory_write(32'h0000_0008, 32'h41206D6F, 4'hF); // "om A"
-        slv_agent.mem_model.backdoor_memory_write(32'h0000_000C, 32'h0A214958, 4'hF);
+        slv_agent.mem_model.backdoor_memory_write(36'h8_4000_0000, 32'h6C6C6548, 4'hF); // "Hell"
+        slv_agent.mem_model.backdoor_memory_write(36'h8_4000_0004, 32'h7266206F, 4'hF); // "o fr"
+        slv_agent.mem_model.backdoor_memory_write(36'h8_4000_0008, 32'h41206D6F, 4'hF); // "om A"
+        slv_agent.mem_model.backdoor_memory_write(36'h8_4000_000C, 32'h0A214958, 4'hF);
 
         // Reset
         rst_n = 0;

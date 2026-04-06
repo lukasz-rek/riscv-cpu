@@ -17,20 +17,23 @@ module top #(
     logic uart_en;
     logic fifo_full;
     // AXI
-    typedef enum logic [1:0] {
+    typedef enum logic [2:0] {
+        S_INIT,
         S_AR,   // Send Addr
         S_R,    // Wait for data
         S_UART, // Give to uart, if fifo full wait
-        S_DONE
+        S_DONE,
+        S_OFF
     } state_t;
 
-    localparam START_ADDR = 32'h0000_0000;
-    localparam END_ADDR = 32'h0000_0010; // 4 words
+    localparam START_ADDR = 36'h8_4000_0000;
+    localparam END_ADDR = 36'h8_4000_0040; // 4 words
 
     state_t state;
-    logic [31:0] addr;
+    logic [35:0] addr;
     logic [31:0] rdata_buf;
     logic [1:0] byte_idx;
+    logic [23:0] timeout;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -38,26 +41,45 @@ module top #(
             out_data <= '0;
             rdata_buf <= '0;
             addr <= START_ADDR;
-            state <= S_AR;
+            state <= S_INIT;
             byte_idx <= '0;
+            timeout <= '0;
         end else begin
             uart_en <= 1'b0;
 
             case (state)
-                S_AR: begin
-                    // If slave is ready to receive ADDR
-                    if (m_axi.arready)
-                        state <= S_R;
-                end
-                S_R: begin
-                    // If we got data, latch it and continue
-                    if (m_axi.rvalid) begin
-                        rdata_buf <= m_axi.rdata;
-                        byte_idx <= '0;
-                        state <= S_UART;
+            S_INIT: begin
+                timeout <= '0;
+                state <= S_AR;
+            end
+            S_AR: begin
+                if (m_axi.arready) begin
+                    state <= S_R;
+                    timeout <= '0;
+                end else begin
+                    timeout <= timeout + 1;
+                    if (timeout[23]) begin
+                        out_data <= 8'h42; // 'B'
+                        uart_en <= 1;
+                        state <= S_OFF;
                     end
-                    // If not loop
                 end
+            end
+            S_R: begin
+                if (m_axi.rvalid) begin
+                    rdata_buf <= m_axi.rdata;
+                    byte_idx <= '0;
+                    state <= S_UART;
+                    timeout <= '0;
+                end else begin
+                    timeout <= timeout + 1;
+                    if (timeout[23]) begin
+                        out_data <= 8'h43; // 'C'
+                        uart_en <= 1;
+                        state <= S_OFF;
+                    end
+                end
+            end
                 S_UART: begin
                     // Send byte, increment if possible
                     if (!fifo_full) begin
@@ -72,19 +94,27 @@ module top #(
                             byte_idx <= byte_idx + 1;
                         end else begin
                             // We're done, loop back but check if we're not DONE
-                            addr <= addr + 4;
-                            if ((addr + 4) < END_ADDR) begin
+                            addr <= addr + 16;
+                            if ((addr + 16) < END_ADDR) begin
                                 state <= S_AR;
                             end else begin
-                                state <= S_DONE;
+                                state <= S_OFF;
                             end
                         end
                     end
                     // Otherwise wait for FIFO to bless us
                 end
                 S_DONE: begin
-                    // CHILL
+                    if (!fifo_full) begin
+                        uart_en <= 1;
+                        out_data <= 8'h61;
+                        state <= S_OFF;
+                    end
                 end
+                S_OFF: begin
+                    // CHIlL
+                end
+
             endcase
         end
     end

@@ -4,7 +4,7 @@ module top_wrapper (
     output wire uart_tx,
 
     // Flat AXI ports — BD sees these
-    output wire [31:0] m_axi_awaddr,
+    output wire [35:0] m_axi_awaddr,
     output wire [7:0]  m_axi_awlen,
     output wire [2:0]  m_axi_awsize,
     output wire [1:0]  m_axi_awburst,
@@ -28,7 +28,7 @@ module top_wrapper (
     output wire        m_axi_bready,
     input  wire [5:0]  m_axi_bid,
 
-    output wire [31:0] m_axi_araddr,
+    output wire [35:0] m_axi_araddr,
     output wire [7:0]  m_axi_arlen,
     output wire [2:0]  m_axi_arsize,
     output wire [1:0]  m_axi_arburst,
@@ -49,7 +49,7 @@ module top_wrapper (
     input  wire [5:0]  m_axi_rid
 );
     // Internal interface instance
-    axi_if #(.ADDR_W(32), .DATA_W(32), .ID_W(6), .QOS_W(4)) axi_bus (
+    axi_if #(.ADDR_W(36), .DATA_W(32), .ID_W(6), .QOS_W(4)) axi_bus (
     );
 
     // Master outputs: interface → flat ports

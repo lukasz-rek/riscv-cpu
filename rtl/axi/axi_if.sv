@@ -1,5 +1,5 @@
 interface axi_if #(
-    parameter ADDR_W = 32,
+    parameter ADDR_W = 36,
     parameter DATA_W = 32,
     parameter ID_W   = 6,
     parameter QOS_W  = 4
