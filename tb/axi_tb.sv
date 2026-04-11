@@ -24,7 +24,7 @@ module tb_axi_read;
     wire        axi_arvalid;
     wire        axi_arready;
     // Read Data
-    wire [31:0] axi_rdata;
+    wire [127:0] axi_rdata;
     wire [ 1:0] axi_rresp;
     wire        axi_rvalid;
     wire        axi_rlast;
@@ -41,8 +41,8 @@ module tb_axi_read;
     wire        axi_awvalid;
     wire        axi_awready;
     // Write Data
-    wire [31:0] axi_wdata;
-    wire [ 3:0] axi_wstrb;
+    wire [127:0] axi_wdata;
+    wire [ 15:0] axi_wstrb;
     wire        axi_wlast;
     wire        axi_wvalid;
     wire        axi_wready;
@@ -160,10 +160,12 @@ module tb_axi_read;
         slv_agent.start_slave();
 
         // Preload test data
-        slv_agent.mem_model.backdoor_memory_write(36'h8_4000_0000, 32'h6C6C6548, 4'hF); // "Hell"
-        slv_agent.mem_model.backdoor_memory_write(36'h8_4000_0004, 32'h7266206F, 4'hF); // "o fr"
-        slv_agent.mem_model.backdoor_memory_write(36'h8_4000_0008, 32'h41206D6F, 4'hF); // "om A"
-        slv_agent.mem_model.backdoor_memory_write(36'h8_4000_000C, 32'h0A214958, 4'hF);
+        slv_agent.mem_model.backdoor_memory_write(
+            36'h8_4000_0000,
+            128'h0A214958_41206D6F_7266206F_6C6C6548,
+            16'hFFFF
+        );
+        // "Hello from AXI!\n"
 
         // Reset
         rst_n = 0;
@@ -172,7 +174,7 @@ module tb_axi_read;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #2_000_000;
+        #8_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;
@@ -183,7 +185,7 @@ module tb_axi_read;
         if (axi_arvalid && axi_arready)
             $display("[AXI] AR: addr=0x%08h @ %0t", axi_araddr, $time);
         if (axi_rvalid && axi_rready)
-            $display("[AXI]  R: data=0x%08h resp=%0d @ %0t", axi_rdata, axi_rresp, $time);
+            $display("[AXI]  R: data=0x%032h resp=%0d @ %0t", axi_rdata, axi_rresp, $time);
     end
 
 
