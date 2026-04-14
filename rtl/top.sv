@@ -18,16 +18,16 @@ module top #(
     logic fifo_full;
     // AXI
     typedef enum logic [3:0] {
-           S_INIT,
-           S_AR,
-           S_R,
-           S_UART,
-           S_AW,
-           S_W,
-           S_B,
-           S_LOOP,
-           S_OFF
-       } state_t;
+        S_INIT,
+        S_AR,
+        S_R,
+        S_UART,
+        S_AW,
+        S_W,
+        S_B,
+        S_LOOP,
+        S_OFF
+    } state_t;
 
     localparam START_ADDR = 36'h8_4000_0000;
     localparam END_ADDR = 36'h8_4000_0010;  // 4 words
@@ -111,36 +111,36 @@ module top #(
                     // Otherwise wait for FIFO to bless us
                 end
                 S_AW: begin
-                                    if (m_axi.awready) begin
-                                        state   <= S_W;
-                                        timeout <= '0;
-                                    end else begin
-                                        timeout <= timeout + 1;
-                                        if (timeout[23]) state <= S_OFF;
-                                    end
-                                end
-                                S_W: begin
-                                    if (m_axi.wready) begin
-                                        state   <= S_B;
-                                        timeout <= '0;
-                                    end else begin
-                                        timeout <= timeout + 1;
-                                        if (timeout[23]) state <= S_OFF;
-                                    end
-                                end
-                                S_B: begin
-                                    if (m_axi.bvalid) begin
-                                        // Write done — loop back to read
-                                        has_written <= 1'b1;
-                                        addr        <= START_ADDR;
-                                        state       <= S_INIT;
-                                    end else begin
-                                        timeout <= timeout + 1;
-                                        if (timeout[23]) state <= S_OFF;
-                                    end
-                                end
-                                S_OFF: ;
-                                default: ;
+                    if (m_axi.awready) begin
+                        state   <= S_W;
+                        timeout <= '0;
+                    end else begin
+                        timeout <= timeout + 1;
+                        if (timeout[23]) state <= S_OFF;
+                    end
+                end
+                S_W: begin
+                    if (m_axi.wready) begin
+                        state   <= S_B;
+                        timeout <= '0;
+                    end else begin
+                        timeout <= timeout + 1;
+                        if (timeout[23]) state <= S_OFF;
+                    end
+                end
+                S_B: begin
+                    if (m_axi.bvalid) begin
+                        // Write done — loop back to read
+                        has_written <= 1'b1;
+                        addr        <= START_ADDR;
+                        state       <= S_INIT;
+                    end else begin
+                        timeout <= timeout + 1;
+                        if (timeout[23]) state <= S_OFF;
+                    end
+                end
+                S_OFF:   ;
+                default: ;
             endcase
         end
     end
@@ -162,26 +162,26 @@ module top #(
     assign m_axi.rready  = (state == S_R);
 
     // ── AXI AW ──
-        assign m_axi.awaddr  = addr;
-        assign m_axi.awlen   = 8'd0;
-        assign m_axi.awsize  = 3'b100;  // 16 bytes
-        assign m_axi.awburst = 2'b01;
-        assign m_axi.awlock  = 1'b0;
-        assign m_axi.awcache = 4'b0011;
-        assign m_axi.awprot  = 3'b000;
-        assign m_axi.awvalid = (state == S_AW);
-        assign m_axi.awid    = '0;
-        assign m_axi.awqos   = '0;
-        assign m_axi.awuser  = 1'b0;
+    assign m_axi.awaddr  = addr;
+    assign m_axi.awlen   = 8'd0;
+    assign m_axi.awsize  = 3'b100;  // 16 bytes
+    assign m_axi.awburst = 2'b01;
+    assign m_axi.awlock  = 1'b0;
+    assign m_axi.awcache = 4'b0011;
+    assign m_axi.awprot  = 3'b000;
+    assign m_axi.awvalid = (state == S_AW);
+    assign m_axi.awid    = '0;
+    assign m_axi.awqos   = '0;
+    assign m_axi.awuser  = 1'b0;
 
-        // ── AXI W ──
-        assign m_axi.wdata  = OVERWRITE_DATA;
-        assign m_axi.wstrb  = 16'hFFFF;
-        assign m_axi.wlast  = 1'b1;
-        assign m_axi.wvalid = (state == S_W);
+    // ── AXI W ──
+    assign m_axi.wdata  = OVERWRITE_DATA;
+    assign m_axi.wstrb  = 16'hFFFF;
+    assign m_axi.wlast  = 1'b1;
+    assign m_axi.wvalid = (state == S_W);
 
-        // ── AXI B ──
-        assign m_axi.bready = 1'b1;
+    // ── AXI B ──
+    assign m_axi.bready = 1'b1;
 
     uart_tx #(
         .CLK_FREQ(58_000_000),

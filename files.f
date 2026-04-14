@@ -7,6 +7,7 @@ rtl/axi/axi_if.sv
 rtl/core/alu/alu.sv
 rtl/core/alu/division_alu.sv
 rtl/core/register_file.sv
+rtl/axi/axi_master.sv
 
 
 rtl/core/core.sv
