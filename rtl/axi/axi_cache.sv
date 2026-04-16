@@ -33,7 +33,8 @@ module axi_cache #(
 
     output logic [DATA_WIDTH-1:0] rd_data,
     output logic                  miss,
-    output logic                  dirty_evict
+    output logic                  dirty_evict,
+    output logic [127:0] cache_evicted_data
 );
 
     typedef struct packed {
@@ -55,8 +56,10 @@ module axi_cache #(
     end
 
     // Initialize cache + bookkeeping
-    logic [31:0] cache[CACHE_LINE_SIZE][NUM_SETS];
+    logic [CACHE_LINE_SIZE-1:0][31:0] cache [NUM_SETS];
     tag_entry_t cache_info[NUM_SETS];  // TAG, VALID, DIRTY
+
+    logic miss_state_q;
 
     // Handle the lookup
     wire [INDEX_BITS-1:0] requested_line;
@@ -67,38 +70,45 @@ module axi_cache #(
     assign requested_line = addr[OFFSET_BITS+:INDEX_BITS];
     assign tag = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
 
+    // If tag doesn't match or line is invalid but only when we're actually requesting sth and not during eviction cycles
     assign miss = ((cache_info[requested_line].tag != tag || !cache_info[requested_line].valid )
-        && (rd_en || wr_en));
+        && (rd_en || wr_en) && !miss_state_q );
+
+    assign dirty_evict = (miss && cache_info[requested_line].dirty);
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             for (int i = 0; i < NUM_SETS; i++) begin
                 cache_info[i].valid <= 0;
             end
-            dirty_evict <= 1'b0;
             rd_data <= 32'b0;
+            miss_state_q <= 0;
         end else begin
             if (cache_load_1 || cache_load_2) begin
                 // Depending on which beat we are on, we need diff base
                 automatic int base = cache_load_1 ? 0 : 4;
                 for (int i = 0; i < 4; i++) begin
-                    cache[base+i][requested_line] <= cache_load_data[i*32+:32];
+                    cache[requested_line][base+i] <= cache_load_data[i*32+:32];
                 end
                 // Will be written twice but oh well
                 cache_info[requested_line].valid <= 1'b1;
                 cache_info[requested_line].dirty <= 1'b0;
                 cache_info[requested_line].tag   <= tag;
-            end else if (miss || rd_en) begin
-                // Output what we'll likely be evicting soon
-                // or just normal data
-                rd_data <= cache[requested_block][requested_line];
-                dirty_evict <= miss ? cache_info[requested_line].dirty : 1'b0;
+            end else if ((miss && dirty_evict)|| miss_state_q) begin
+                // Handle 2 miss cycles needed to output all evicted data
+                // Note that this should happen only if line is dirty
+                cache_evicted_data <= (miss_state_q) ? cache[requested_line][7:4] : cache[requested_line][3:0];
+                miss_state_q <= !miss_state_q;
+
+            end else if (rd_en) begin
+                // Plain read
+                rd_data <= cache[requested_line][requested_block];
             end else if (wr_en) begin
                 // Modify data, set dirty
-                if (byte_en[0]) cache[requested_block][requested_line][7:0] <= wr_data[7:0];
-                if (byte_en[1]) cache[requested_block][requested_line][15:8] <= wr_data[15:8];
-                if (byte_en[2]) cache[requested_block][requested_line][23:16] <= wr_data[23:16];
-                if (byte_en[3]) cache[requested_block][requested_line][31:24] <= wr_data[31:24];
+                if (byte_en[0]) cache[requested_line][requested_block][7:0] <= wr_data[7:0];
+                if (byte_en[1]) cache[requested_line][requested_block][15:8] <= wr_data[15:8];
+                if (byte_en[2]) cache[requested_line][requested_block][23:16] <= wr_data[23:16];
+                if (byte_en[3]) cache[requested_line][requested_block][31:24] <= wr_data[31:24];
 
                 cache_info[requested_line].dirty <= 1'b1;
             end
