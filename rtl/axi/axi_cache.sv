@@ -26,15 +26,14 @@ module axi_cache #(
 
     // Handle inserting things into cache, for perf reasons
     // we're loading 256b - 8 words
-    input logic cache_load_1,
-    input logic cache_load_2,
+    input logic [  1:0] cache_load,
     input logic [127:0] cache_load_data,
 
 
     output logic [DATA_WIDTH-1:0] rd_data,
     output logic                  miss,
     output logic                  dirty_evict,
-    output logic [127:0] cache_evicted_data
+    output logic [         127:0] cache_evicted_data
 );
 
     typedef struct packed {
@@ -56,10 +55,12 @@ module axi_cache #(
     end
 
     // Initialize cache + bookkeeping
-    logic [CACHE_LINE_SIZE-1:0][31:0] cache [NUM_SETS];
+    (* verilator public *)
+    (* ram_style = "block" *) logic [255:0] cache[NUM_SETS];
     tag_entry_t cache_info[NUM_SETS];  // TAG, VALID, DIRTY
 
     logic miss_state_q;
+    logic evicted_count_q;
 
     // Handle the lookup
     wire [INDEX_BITS-1:0] requested_line;
@@ -70,11 +71,15 @@ module axi_cache #(
     assign requested_line = addr[OFFSET_BITS+:INDEX_BITS];
     assign tag = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
 
-    // If tag doesn't match or line is invalid but only when we're actually requesting sth and not during eviction cycles
-    assign miss = ((cache_info[requested_line].tag != tag || !cache_info[requested_line].valid )
-        && (rd_en || wr_en) && !miss_state_q );
+    // If tag doesn't match or line is invalid but only when we're actually requesting sth, keep it up during eviction cycle
+    wire first_miss;
 
-    assign dirty_evict = (miss && cache_info[requested_line].dirty);
+    assign first_miss = ((cache_info[requested_line].tag != tag || !cache_info[requested_line].valid )
+        && (rd_en || wr_en) && !miss_state_q);
+    assign dirty_evict = first_miss && cache_info[requested_line].dirty;
+
+    assign miss = first_miss || miss_state_q;
+
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -83,36 +88,51 @@ module axi_cache #(
             end
             rd_data <= 32'b0;
             miss_state_q <= 0;
+            evicted_count_q <= 2'd0;
         end else begin
-            if (cache_load_1 || cache_load_2) begin
+            if (first_miss) begin
+                miss_state_q <= 1;
+            end
+            if (cache_load != 2'b00) begin
                 // Depending on which beat we are on, we need diff base
-                automatic int base = cache_load_1 ? 0 : 4;
+                automatic int base = (cache_load == 2'b01) ? 0 : 4;
+                $display("Loading %h", cache[requested_line]);
                 for (int i = 0; i < 4; i++) begin
-                    cache[requested_line][base+i] <= cache_load_data[i*32+:32];
+
+                    cache[requested_line][(base+i)*32+:32] <= cache_load_data[i*32+:32];
                 end
-                // Will be written twice but oh well
-                cache_info[requested_line].valid <= 1'b1;
-                cache_info[requested_line].dirty <= 1'b0;
-                cache_info[requested_line].tag   <= tag;
-            end else if ((miss && dirty_evict)|| miss_state_q) begin
+                if (cache_load == 2'b10) begin
+                    cache_info[requested_line].valid <= 1'b1;
+                    cache_info[requested_line].dirty <= 1'b0;
+                    cache_info[requested_line].tag   <= tag;
+                    // Clear missed state
+                    miss_state_q <= 0;
+                end
+            end else if ((first_miss && dirty_evict) || miss_state_q) begin
                 // Handle 2 miss cycles needed to output all evicted data
                 // Note that this should happen only if line is dirty
-                cache_evicted_data <= (miss_state_q) ? cache[requested_line][7:4] : cache[requested_line][3:0];
-                miss_state_q <= !miss_state_q;
-
+                if (first_miss) begin
+                    cache_evicted_data <= cache[requested_line][127:0];
+                    evicted_count_q <= 1;
+                end else if (evicted_count_q) begin
+                    cache_evicted_data <= cache[requested_line][255:128];
+                    evicted_count_q <= 0;
+                end else cache_evicted_data <= '0;
             end else if (rd_en) begin
                 // Plain read
-                rd_data <= cache[requested_line][requested_block];
+                rd_data <= cache[requested_line][requested_block*32+:32];
             end else if (wr_en) begin
                 // Modify data, set dirty
-                if (byte_en[0]) cache[requested_line][requested_block][7:0] <= wr_data[7:0];
-                if (byte_en[1]) cache[requested_line][requested_block][15:8] <= wr_data[15:8];
-                if (byte_en[2]) cache[requested_line][requested_block][23:16] <= wr_data[23:16];
-                if (byte_en[3]) cache[requested_line][requested_block][31:24] <= wr_data[31:24];
+                if (byte_en[0]) cache[requested_line][requested_block*32+:32][7:0] <= wr_data[7:0];
+                if (byte_en[1]) cache[requested_line][requested_block*32+:32][15:8] <= wr_data[15:8];
+                if (byte_en[2]) cache[requested_line][requested_block*32+:32][23:16] <= wr_data[23:16];
+                if (byte_en[3]) cache[requested_line][requested_block*32+:32][31:24] <= wr_data[31:24];
 
                 cache_info[requested_line].dirty <= 1'b1;
             end
         end
+
     end
+
 
 endmodule
