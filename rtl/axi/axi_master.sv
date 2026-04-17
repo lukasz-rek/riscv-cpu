@@ -35,7 +35,6 @@ module axi_master #(
         Once data arrives then return it on the same cycle
     */
 
-    logic miss_d;
     logic dirty_evict_d;
 
     logic [1:0] cache_load_d;
@@ -57,7 +56,7 @@ module axi_master #(
     } state_t;
 
     state_t state_q;
-    logic   is_2nd_beat;
+    logic   beat_counter;
 
     axi_cache #() d_cache (
         .clk  (clk),
@@ -73,7 +72,7 @@ module axi_master #(
         .cache_load_data(cache_load_data),
 
         .rd_data(rd_data_d),
-        .miss(miss_d),
+        .miss(stall_D),
         .dirty_evict(dirty_evict_d),
         .cache_evicted_data(cache_evicted_data)
     );
@@ -81,40 +80,43 @@ module axi_master #(
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state_q <= AXI_OFF;
-            is_2nd_beat <= 0;
+            beat_counter <= 0;
             cache_load_d <= 2'b00;
         end else begin
             // If we're missing data then start up axi, do write if dirty
-            if (miss_d && (state_q == AXI_OFF)) begin
+            if (stall_D && (state_q == AXI_OFF)) begin
                 if (dirty_evict_d) begin
                     state_q <= AXI_AW;
-                    m_axi.awaddr <= addr_d + START_ADDR;
+                    m_axi.awaddr <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
                 end else begin
                     state_q <= AXI_AR;
-                    m_axi.araddr <= addr_d + START_ADDR;
+                    m_axi.araddr <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
                 end
             end
 
             case (state_q)
-                AXI_OFF: ;
+                AXI_OFF: begin
+                    cache_load_d <= 2'b00;
+                    beat_counter <= 0;
+                end
                 // Reading progression
                 AXI_AR:
                 if (m_axi.arready) begin
                     state_q <= AXI_R;
-                    is_2nd_beat <= 0;
+                    beat_counter <= 0;
                 end
-                AXI_R:
-                if (m_axi.rvalid) begin
-                    cache_load_data <= m_axi.rdata;
-                    if (!is_2nd_beat) begin
-                        is_2nd_beat  <= 1;
-                        cache_load_d <= 2'b01;
-                    end else begin
-                        is_2nd_beat <= 0;
-                        cache_load_d <= 2'b10;
-                        state_q <= AXI_OFF;
+                AXI_R: begin
+                    cache_load_d <= 2'b00;
+                    if (m_axi.rvalid) begin
+                        cache_load_data <= m_axi.rdata;
+                        cache_load_d <= beat_counter ? 2'b10 : 2'b01;
+                        beat_counter <= !beat_counter;
+                        if (beat_counter) begin
+                            state_q <= AXI_OFF;
+                        end
                     end
                 end
+
                 // Write progression
 
                 default: ;
@@ -130,13 +132,36 @@ module axi_master #(
     assign m_axi.arlock  = 1'b0;
     assign m_axi.arcache = 4'b0011;  // normal non-cacheable bufferable
     assign m_axi.arprot  = 3'b000;
-    assign m_axi.arvalid = (state == AXI_AR);
+    assign m_axi.arvalid = (state_q == AXI_AR);
     assign m_axi.arid    = '0;
     assign m_axi.arqos   = '0;
     assign m_axi.aruser  = 1'b0;
 
     // ── AXI R channel ──
-    assign m_axi.rready  = (state == AXI_R);
+    assign m_axi.rready  = (state_q == AXI_R);
 
+    assign stall_I   = 1'b0;
+    assign rd_data_i = '0;
+
+    // ── AXI AW ──
+    assign m_axi.awlen   = 8'd1;
+    assign m_axi.awsize  = 3'b100;  // 16 bytes
+    assign m_axi.awburst = 2'b01;
+    assign m_axi.awlock  = 1'b0;
+    assign m_axi.awcache = 4'b0011;
+    assign m_axi.awprot  = 3'b000;
+    assign m_axi.awvalid = (state_q == AXI_AW);
+    assign m_axi.awid    = '0;
+    assign m_axi.awqos   = '0;
+    assign m_axi.awuser  = 1'b0;
+
+    // ── AXI W ──
+    assign m_axi.wdata  = '0;
+    assign m_axi.wstrb  = 16'hFFFF;
+    assign m_axi.wlast  = 1'b1;
+    assign m_axi.wvalid = (state_q == AXI_W);
+
+    // ── AXI B ──
+    assign m_axi.bready = 1'b1;
 
 endmodule

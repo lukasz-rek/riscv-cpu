@@ -55,7 +55,6 @@ module axi_cache #(
     end
 
     // Initialize cache + bookkeeping
-    (* verilator public *)
     (* ram_style = "block" *) logic [255:0] cache[NUM_SETS];
     tag_entry_t cache_info[NUM_SETS];  // TAG, VALID, DIRTY
 
@@ -88,7 +87,7 @@ module axi_cache #(
             end
             rd_data <= 32'b0;
             miss_state_q <= 0;
-            evicted_count_q <= 2'd0;
+            evicted_count_q <= 0;
         end else begin
             if (first_miss) begin
                 miss_state_q <= 1;
@@ -96,15 +95,13 @@ module axi_cache #(
             if (cache_load != 2'b00) begin
                 // Depending on which beat we are on, we need diff base
                 automatic int base = (cache_load == 2'b01) ? 0 : 4;
-                $display("Loading %h", cache[requested_line]);
                 for (int i = 0; i < 4; i++) begin
-
                     cache[requested_line][(base+i)*32+:32] <= cache_load_data[i*32+:32];
                 end
                 if (cache_load == 2'b10) begin
                     cache_info[requested_line].valid <= 1'b1;
                     cache_info[requested_line].dirty <= 1'b0;
-                    cache_info[requested_line].tag   <= tag;
+                    cache_info[requested_line].tag <= tag;
                     // Clear missed state
                     miss_state_q <= 0;
                 end
@@ -123,12 +120,11 @@ module axi_cache #(
                 rd_data <= cache[requested_line][requested_block*32+:32];
             end else if (wr_en) begin
                 // Modify data, set dirty
-                if (byte_en[0]) cache[requested_line][requested_block*32+:32][7:0] <= wr_data[7:0];
-                if (byte_en[1]) cache[requested_line][requested_block*32+:32][15:8] <= wr_data[15:8];
-                if (byte_en[2]) cache[requested_line][requested_block*32+:32][23:16] <= wr_data[23:16];
-                if (byte_en[3]) cache[requested_line][requested_block*32+:32][31:24] <= wr_data[31:24];
-
-                cache_info[requested_line].dirty <= 1'b1;
+                for (int i = 0; i < 4; i++) begin
+                        if (byte_en[i])
+                            cache[requested_line][requested_block*32 + i*8 +: 8] <= wr_data[i*8 +: 8];
+                    end
+                    cache_info[requested_line].dirty <= 1'b1;
             end
         end
 
