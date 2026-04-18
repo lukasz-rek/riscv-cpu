@@ -93,9 +93,8 @@ module axi_cache #(
             cache_wdata[255:128] = cache_load_data;
             cache_wbe[31:16]     = '1;
         end else if (wr_en && !miss) begin
-            for (int i = 0; i < 8; i++)
-                cache_wdata[i*32 +: 32] = wr_data;
-            cache_wbe[requested_block * 4 +: 4] = byte_en;
+            for (int i = 0; i < 8; i++) cache_wdata[i*32+:32] = wr_data;
+            cache_wbe[requested_block*4+:4] = byte_en;
         end
     end
 
@@ -115,8 +114,7 @@ module axi_cache #(
             end
             cache_line <= cache[requested_line];
             for (int i = 0; i < 32; i++)
-                if (cache_wbe[i])
-                    cache[requested_line][i*8 +: 8] <= cache_wdata[i*8 +: 8];
+            if (cache_wbe[i]) cache[requested_line][i*8+:8] <= cache_wdata[i*8+:8];
             if (cache_load != 2'b00) begin
                 // Depending on which beat we are on, we need diff base
 
@@ -156,6 +154,6 @@ module axi_cache #(
         end
 
     end
-    assign rd_data = cache_line[requested_block * 32 +: 32];
+    assign rd_data = cache_line[requested_block*32+:32];
 
 endmodule

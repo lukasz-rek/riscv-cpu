@@ -8,9 +8,9 @@ module uart_tx #(
     input  logic        rst_n,
     input  logic [ 7:0] data,
     input  logic        uart_en,
-    input  logic [31:0] mem_wr_addr,  // Used to snoop on writes
+    input  logic [31:0] mem_wr_addr,      // Used to snoop on writes
     output logic        tx,
-    output logic fifo_almost_full
+    output logic        fifo_almost_full
 );
 
     // UART operations

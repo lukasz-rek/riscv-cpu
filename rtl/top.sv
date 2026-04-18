@@ -76,11 +76,11 @@ module top #(
             uart_en <= 0;
             case (state)
                 UART_OFF: begin
-                    state <= UART_START_READ;
+                    state   <= UART_START_READ;
                     rd_en_d <= 1;
                 end
                 UART_START_READ: begin
-                    state   <= UART_START_READ;
+                    state <= UART_START_READ;
                     if (!stall_D) begin
                         // If no stall, then await data on next cycle
                         rd_en_d <= 0;
@@ -102,10 +102,10 @@ module top #(
                             2'd2: out_data <= latch_data[23:16];
                             2'd3: out_data <= latch_data[31:24];
                         endcase
-                        state <= (byte_counter == 2'd3) ?  UART_OFF : UART_BYTES;
+                        state <= (byte_counter == 2'd3) ? UART_OFF : UART_BYTES;
                     end
                 end
-                default:  ;
+                default: ;
             endcase
         end
     end
