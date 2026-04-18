@@ -37,6 +37,9 @@ module axi_master #(
 
     logic dirty_evict_d;
 
+    logic [ADDR_WIDTH-1:0] awaddr_r;
+    logic [ADDR_WIDTH-1:0] araddr_r;
+
     logic [1:0] cache_load_d;
 
     logic [127:0] cache_load_data;
@@ -49,6 +52,7 @@ module axi_master #(
         // Read states
         AXI_AR,
         AXI_R,
+        AXI_R_DONE, // Extra state for the actual requested read to go through
         // Write states
         AXI_AW,
         AXI_W,
@@ -77,7 +81,7 @@ module axi_master #(
         .cache_evicted_data(cache_evicted_data)
     );
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             state_q <= AXI_OFF;
             beat_counter <= 0;
@@ -87,18 +91,15 @@ module axi_master #(
             if (stall_D && (state_q == AXI_OFF)) begin
                 if (dirty_evict_d) begin
                     state_q <= AXI_AW;
-                    m_axi.awaddr <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
+                    awaddr_r <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
                 end else begin
                     state_q <= AXI_AR;
-                    m_axi.araddr <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
+                    araddr_r <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
                 end
             end
 
             case (state_q)
-                AXI_OFF: begin
-                    cache_load_d <= 2'b00;
-                    beat_counter <= 0;
-                end
+                AXI_OFF: ;
                 // Reading progression
                 AXI_AR:
                 if (m_axi.arready) begin
@@ -112,9 +113,14 @@ module axi_master #(
                         cache_load_d <= beat_counter ? 2'b10 : 2'b01;
                         beat_counter <= !beat_counter;
                         if (beat_counter) begin
-                            state_q <= AXI_OFF;
+                            state_q <= AXI_R_DONE;
                         end
                     end
+                end
+                AXI_R_DONE: begin
+                    cache_load_d <= 2'b00;
+                    beat_counter <= 0;
+                    state_q <= AXI_OFF;
                 end
 
                 // Write progression
@@ -123,6 +129,9 @@ module axi_master #(
             endcase
         end
     end
+
+    assign m_axi.awaddr = awaddr_r;
+    assign m_axi.araddr = araddr_r;
 
     // Setup static AXI connections
     // AXI AR Channel

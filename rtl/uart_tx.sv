@@ -40,7 +40,7 @@ module uart_tx #(
     assign fifo_full = (wr_ptr[PTR_W-1:0] == rd_ptr[PTR_W-1:0]) && (wr_ptr[PTR_W] != rd_ptr[PTR_W]);
 
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             state     <= IDLE;
             tx        <= 1'b1;

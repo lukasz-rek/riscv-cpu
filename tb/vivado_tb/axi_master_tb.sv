@@ -13,8 +13,11 @@ module axi_master_tb;
     // Memory-side stimulus to the axi_master
     logic [31:0] addr_d;
     logic        rd_en_d;
+    logic wr_en;
     logic [31:0] rd_data_d;
     logic        stall_D;
+    logic [31:0] wr_addr;
+    logic [31:0] wr_data;
 
     // AXI interface between DUT and VIP
     axi_if m_axi_if();
@@ -29,10 +32,10 @@ module axi_master_tb;
         .rst_n     (rst_n),
         .addr_i    (32'h0),
         .addr_d    (addr_d),
-        .wr_addr   (32'h0),
-        .wr_data   (32'h0),
-        .byte_en   (4'h0),
-        .wr_en     (1'b0),
+        .wr_addr   (wr_addr),
+        .wr_data   (wr_data),
+        .byte_en   (4'hF),
+        .wr_en     (wr_en),
         .rd_en_i   (1'b0),
         .rd_en_d   (rd_en_d),
         .rd_data_i (),
@@ -120,22 +123,46 @@ module axi_master_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // Issue a read at address 0x0
-        @(posedge clk);
+        @(negedge clk);
         addr_d  <= 32'h0000_0000;
         rd_en_d <= 1'b1;
-
-        // Wait one cycle for stall_D to assert (miss detected)
-        @(posedge clk);
+        #1; // Delay moment for stall_D to actually propagate
 
         // Wait for the miss to be serviced
-        while (stall_D) @(posedge clk);
+        while (stall_D) @(negedge clk);
 
-        // rd_data is registered inside the cache, give it one more cycle
-        @(posedge clk);
 
         $display("[TB] rd_data_d = 0x%08h (expected 0xDEADBEEF)", rd_data_d);
-
         rd_en_d <= 1'b0;
+
+        @(negedge clk);
+        rd_en_d <= 1'b1;
+        addr_d  <= 32'h0000_000C;
+
+        @(negedge clk);
+        $display("[TB] rd_data_d = 0x%08h (expected 0x44444444)", rd_data_d);
+        rd_en_d <= 1'b0;
+
+        // Now just do a write, later verify it was modified
+        @(negedge clk);
+        wr_en <= 1'b1;
+        wr_addr <= 32'h0000_000C;
+        wr_data <= 32'hABCD_DCBA;
+
+        @(negedge clk);
+        wr_en <= 1'b0;
+        rd_en_d <= 1'b1;
+
+        @(negedge clk);
+        $display("[TB] rd_data_d = 0x%08h (expected 0xABCDDBCA)", rd_data_d);
+        // Now start doing reads that evict previous line and verify it got written to AXI
+        addr_d <= 32'h0000_4000;
+        #1;
+
+        assert(stall_D == 1);
+        assert(dut.dirty_evict_d == 1);
+
+
         #1000;
         $finish;
     end

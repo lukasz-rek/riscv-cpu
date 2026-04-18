@@ -80,7 +80,7 @@ module axi_cache #(
     assign miss = first_miss || miss_state_q;
 
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             for (int i = 0; i < NUM_SETS; i++) begin
                 cache_info[i].valid <= 0;
@@ -89,6 +89,9 @@ module axi_cache #(
             miss_state_q <= 0;
             evicted_count_q <= 0;
         end else begin
+            // Some defaults to not propagate gibberish
+            rd_data <= '0;
+            cache_evicted_data <= '0;
             if (first_miss) begin
                 miss_state_q <= 1;
             end
@@ -104,6 +107,7 @@ module axi_cache #(
                     cache_info[requested_line].tag <= tag;
                     // Clear missed state
                     miss_state_q <= 0;
+                    rd_data <= cache[requested_line][requested_block*32+:32];
                 end
             end else if ((first_miss && dirty_evict) || miss_state_q) begin
                 // Handle 2 miss cycles needed to output all evicted data
