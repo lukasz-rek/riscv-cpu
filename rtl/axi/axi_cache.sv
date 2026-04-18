@@ -56,6 +56,9 @@ module axi_cache #(
 
     // Initialize cache + bookkeeping
     (* ram_style = "block" *) logic [255:0] cache[NUM_SETS];
+    logic [255:0] cache_line;
+    logic [255:0] cache_wdata;
+    logic [31:0] cache_wbe;
     tag_entry_t cache_info[NUM_SETS];  // TAG, VALID, DIRTY
 
     logic miss_state_q;
@@ -79,35 +82,56 @@ module axi_cache #(
 
     assign miss = first_miss || miss_state_q;
 
+    always_comb begin
+        cache_wdata = '0;
+        cache_wbe   = '0;
+
+        if (cache_load == 2'b01) begin
+            cache_wdata[127:0] = cache_load_data;
+            cache_wbe[15:0]    = '1;
+        end else if (cache_load == 2'b10) begin
+            cache_wdata[255:128] = cache_load_data;
+            cache_wbe[31:16]     = '1;
+        end else if (wr_en && !miss) begin
+            for (int i = 0; i < 8; i++)
+                cache_wdata[i*32 +: 32] = wr_data;
+            cache_wbe[requested_block * 4 +: 4] = byte_en;
+        end
+    end
 
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             for (int i = 0; i < NUM_SETS; i++) begin
                 cache_info[i].valid <= 0;
             end
-            rd_data <= 32'b0;
             miss_state_q <= 0;
             evicted_count_q <= 0;
+            cache_line <= '0;
         end else begin
             // Some defaults to not propagate gibberish
-            rd_data <= '0;
             cache_evicted_data <= '0;
             if (first_miss) begin
                 miss_state_q <= 1;
             end
+            cache_line <= cache[requested_line];
+            for (int i = 0; i < 32; i++)
+                if (cache_wbe[i])
+                    cache[requested_line][i*8 +: 8] <= cache_wdata[i*8 +: 8];
             if (cache_load != 2'b00) begin
                 // Depending on which beat we are on, we need diff base
-                automatic int base = (cache_load == 2'b01) ? 0 : 4;
-                for (int i = 0; i < 4; i++) begin
-                    cache[requested_line][(base+i)*32+:32] <= cache_load_data[i*32+:32];
-                end
+
+                // if (cache_load == 2'b01) begin
+                //     cache[requested_line][127:0] = cache_load_data;
+                // end else begin
+                //     cache[requested_line][255:128] = cache_load_data;
+                // end
+
                 if (cache_load == 2'b10) begin
                     cache_info[requested_line].valid <= 1'b1;
                     cache_info[requested_line].dirty <= 1'b0;
                     cache_info[requested_line].tag <= tag;
                     // Clear missed state
                     miss_state_q <= 0;
-                    rd_data <= cache[requested_line][requested_block*32+:32];
                 end
             end else if ((first_miss && dirty_evict) || miss_state_q) begin
                 // Handle 2 miss cycles needed to output all evicted data
@@ -119,20 +143,19 @@ module axi_cache #(
                     cache_evicted_data <= cache[requested_line][255:128];
                     evicted_count_q <= 0;
                 end else cache_evicted_data <= '0;
-            end else if (rd_en) begin
-                // Plain read
-                rd_data <= cache[requested_line][requested_block*32+:32];
             end else if (wr_en) begin
                 // Modify data, set dirty
-                for (int i = 0; i < 4; i++) begin
-                    if (byte_en[i])
-                        cache[requested_line][requested_block*32+i*8+:8] <= wr_data[i*8+:8];
-                end
+                // for (int i = 0; i < 4; i++) begin
+                //     if (byte_en[i])
+                //         cache[requested_line][requested_block*32+i*8+:8] <= wr_data[i*8+:8];
+                // end
+
+
                 cache_info[requested_line].dirty <= 1'b1;
             end
         end
 
     end
-
+    assign rd_data = cache_line[requested_block * 32 +: 32];
 
 endmodule
