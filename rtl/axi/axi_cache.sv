@@ -125,10 +125,10 @@ module axi_cache #(
             end else if (wr_en) begin
                 // Modify data, set dirty
                 for (int i = 0; i < 4; i++) begin
-                        if (byte_en[i])
-                            cache[requested_line][requested_block*32 + i*8 +: 8] <= wr_data[i*8 +: 8];
-                    end
-                    cache_info[requested_line].dirty <= 1'b1;
+                    if (byte_en[i])
+                        cache[requested_line][requested_block*32+i*8+:8] <= wr_data[i*8+:8];
+                end
+                cache_info[requested_line].dirty <= 1'b1;
             end
         end
 

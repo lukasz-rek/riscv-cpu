@@ -56,7 +56,6 @@ interface axi_if #(
                araddr, arlen, arsize, arburst, arlock, arcache, arprot,
                arvalid, arid, arqos, aruser,
                rready,
-        input  awready, wready, bresp, bvalid, bid, arready,
-               rdata, rresp, rvalid, rlast, rid
+        input awready, wready, bresp, bvalid, bid, arready, rdata, rresp, rvalid, rlast, rid
     );
 endinterface

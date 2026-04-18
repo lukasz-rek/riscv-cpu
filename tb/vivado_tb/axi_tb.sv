@@ -165,11 +165,35 @@ module tb_axi_read;
             128'h0A214958_41206D6F_7266206F_6C6C6548,
             16'hFFFF
         );
-        // "Hello from AXI!\n"
+        slv_agent.mem_model.backdoor_memory_write(
+            36'h8_4000_0010,
+            128'h0000000A_21646C72_6F57206F_6C6C6548,
+            16'hFFFF
+        );
+        slv_agent.mem_model.backdoor_memory_write(
+            36'h8_4000_0020,
+            128'h0000000A_73656C75_7220562D_43534952,
+            16'hFFFF
+        );
+        slv_agent.mem_model.backdoor_memory_write(
+            36'h8_4000_0030,
+            128'h00000000_00000A21_64656464_65626D45,
+            16'hFFFF
+        );
+        slv_agent.mem_model.backdoor_memory_write(
+            36'h8_4000_0040,
+            128'h00000000_00000A34_33323120_74736574,
+            16'hFFFF
+        );
+        slv_agent.mem_model.backdoor_memory_write(
+            36'h8_4000_0050,
+            128'h0A214958_41206D6F_7266206F_6C6C6548,
+            16'hFFFF
+        );
 
         // Reset
         rst_n = 0;
-        #200;
+        #500;
         rst_n = 1;
         $display("[TB] Reset released at %0t", $time);
 
@@ -181,12 +205,12 @@ module tb_axi_read;
     end
 
     // ── Monitor AXI reads ──
-    always @(posedge clk) begin
-        if (axi_arvalid && axi_arready)
-            $display("[AXI] AR: addr=0x%08h @ %0t", axi_araddr, $time);
-        if (axi_rvalid && axi_rready)
-            $display("[AXI]  R: data=0x%032h resp=%0d @ %0t", axi_rdata, axi_rresp, $time);
-    end
+    // always @(posedge clk) begin
+    //     if (axi_arvalid && axi_arready)
+    //         $display("[AXI] AR: addr=0x%08h @ %0t", axi_araddr, $time);
+    //     if (axi_rvalid && axi_rready)
+    //         $display("[AXI]  R: data=0x%032h resp=%0d @ %0t", axi_rdata, axi_rresp, $time);
+    // end
 
 
 

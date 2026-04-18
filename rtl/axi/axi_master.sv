@@ -37,8 +37,8 @@ module axi_master #(
 
     logic dirty_evict_d;
 
-    logic [ADDR_WIDTH-1:0] awaddr_r;
-    logic [ADDR_WIDTH-1:0] araddr_r;
+    logic [35:0] awaddr_r;
+    logic [35:0] araddr_r;
 
     logic [1:0] cache_load_d;
 
@@ -52,7 +52,7 @@ module axi_master #(
         // Read states
         AXI_AR,
         AXI_R,
-        AXI_R_DONE, // Extra state for the actual requested read to go through
+        AXI_R_DONE,  // Extra state for the actual requested read to go through
         // Write states
         AXI_AW,
         AXI_W,
@@ -90,10 +90,10 @@ module axi_master #(
             // If we're missing data then start up axi, do write if dirty
             if (stall_D && (state_q == AXI_OFF)) begin
                 if (dirty_evict_d) begin
-                    state_q <= AXI_AW;
+                    state_q  <= AXI_AW;
                     awaddr_r <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
                 end else begin
-                    state_q <= AXI_AR;
+                    state_q  <= AXI_AR;
                     araddr_r <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
                 end
             end
