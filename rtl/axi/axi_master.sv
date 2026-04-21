@@ -10,7 +10,6 @@ module axi_master #(
     // Memory interface
     input logic [ADDR_WIDTH-1:0] addr_i,
     input logic [ADDR_WIDTH-1:0] addr_d,
-    input logic [ADDR_WIDTH-1:0] wr_addr,
     /* verilator lint_on UNUSEDSIGNAL */
     input logic [DATA_WIDTH-1:0] wr_data,
     input logic [           3:0] byte_en,
@@ -54,7 +53,9 @@ module axi_master #(
     logic [127:0] cache_evicted_data;
 
     logic [127:0] evicted_buffer       [2];
+    /* verilator lint_off UNUSEDSIGNAL */
     logic [ 31:0] evicted_addr;
+    /* verilator lint_on UNUSEDSIGNAL */
 
     typedef enum logic [4:0] {
         AXI_OFF,
@@ -122,7 +123,7 @@ module axi_master #(
         if (!rst_n) begin
             state_q <= AXI_OFF;
             beat_counter <= 0;
-            wlast_r = 0;
+            wlast_r <= 0;
             wdata_r <= '0;
             cache_load <= '0;
             i_stall_in_progress <= 0;
@@ -130,7 +131,7 @@ module axi_master #(
             // If we're missing data then start up axi, do write if dirty
             // Prioritize I cache over D, let D wait longer if both stalled
             if (stall_I && (state_q == AXI_OFF)) begin
-                araddr_r <= {addr_i[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
+                araddr_r <= 36'({addr_i[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                 i_stall_in_progress <= 1;
                 if (dirty_evict_i) begin
                     state_q <= AXI_CAPTURE_EVICTED;
@@ -139,7 +140,7 @@ module axi_master #(
                     state_q <= AXI_AR;
                 end
             end else if (stall_D && (state_q == AXI_OFF)) begin
-                araddr_r <= {addr_d[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
+                araddr_r <= 36'({addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                 i_stall_in_progress <= 0;
                 if (dirty_evict_d) begin
                     state_q <= AXI_CAPTURE_EVICTED;
@@ -180,7 +181,7 @@ module axi_master #(
                 AXI_CAPTURE_EVICTED: begin
                     if (beat_counter == 0) begin
                         evicted_buffer[0] <= cache_evicted_data;
-                        awaddr_r <= {evicted_addr[ADDR_WIDTH-1:5], 5'b0} + START_ADDR;
+                        awaddr_r <= 36'({evicted_addr[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                     end else begin
                         evicted_buffer[1] <= cache_evicted_data;
                         state_q <= AXI_AW;

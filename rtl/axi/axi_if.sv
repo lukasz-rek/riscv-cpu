@@ -23,10 +23,14 @@ interface axi_if #(
     wire                wvalid;
     wire                wready;
 
+    /* verilator lint_off UNUSEDSIGNAL */
     wire [         1:0] bresp;
+    /* verilator lint_on UNUSEDSIGNAL */
     wire                bvalid;
     wire                bready;
+    /* verilator lint_off UNUSEDSIGNAL */
     wire [    ID_W-1:0] bid;
+    /* verilator lint_on UNUSEDSIGNAL */
 
     wire [  ADDR_W-1:0] araddr;
     wire [         7:0] arlen;
@@ -42,11 +46,15 @@ interface axi_if #(
     wire                aruser;
 
     wire [  DATA_W-1:0] rdata;
+    /* verilator lint_off UNUSEDSIGNAL */
     wire [         1:0] rresp;
+    /* verilator lint_on UNUSEDSIGNAL */
     wire                rvalid;
+    /* verilator lint_off UNUSEDSIGNAL */
     wire                rlast;
-    wire                rready;
     wire [    ID_W-1:0] rid;
+    /* verilator lint_on UNUSEDSIGNAL */
+    wire                rready;
 
     modport master(
         output awaddr, awlen, awsize, awburst, awlock, awcache, awprot,

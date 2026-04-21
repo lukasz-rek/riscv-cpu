@@ -133,7 +133,7 @@ module axi_cache #(
                 if (first_miss) begin
                     cache_evicted_data <= cache[requested_line][127:0];
                     evicted_addr <= {
-                        cache_info[requested_line].tag, requested_line, requested_block
+                        cache_info[requested_line].tag, requested_line, requested_block, 2'b0
                     };
                     evicted_count_q <= 1;
                 end else if (evicted_count_q) begin
