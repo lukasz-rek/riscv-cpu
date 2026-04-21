@@ -125,6 +125,12 @@ module axi_master_tb;
             128'hABCDABCD_BCDADBCA_CCDDDDCC_AABBBBAA,
             16'hFFFF
         );
+        slv_agent.mem_model.backdoor_memory_write(
+            36'h8_4000_0040,
+            128'hFEFEFEFE_CDCDCDCD_0F0F0F0F_ACACACAC,
+            16'hFFFF
+        );
+
 
 
         addr_d  = 32'h0;
@@ -161,6 +167,7 @@ module axi_master_tb;
         wr_en <= 1'b1;
         wr_addr <= 32'h0000_000C;
         wr_data <= 32'hABCD_DCBA;
+        byte_en <= '1;
 
         @(negedge clk);
         wr_en <= 1'b0;
@@ -178,13 +185,42 @@ module axi_master_tb;
         while (stall_D) @(negedge clk); // Should have gotten written
         $display("[TB] rd_data_d = 0x%08h (expected 0xAABBBBAA)", rd_data_d);
 
+
         evicted_line = slv_agent.mem_model.backdoor_memory_read(36'h8_4000_0000);
         assert(evicted_line[127:96] === 32'hABCD_DCBA)
             else $error("[TB] Eviction mismatch: got 0x%08h", evicted_line[127:96]);
 
         // Now let's test that doing reads on i cache works
+        rd_en_d <= 0;
+        rd_en_i <= 1;
+        addr_i <= 32'h0000_0040;
 
+        #1;
+        assert(stall_I == 1)
+            else $error("I stall not asserted");
+
+        while(stall_I) @(negedge clk);
+
+        $display("[TB] rd_data_i = 0x%08h (expected 0xACACACAC)", rd_data_i);
         // And that missing on both prioritizes I and doesn't mess anything up
+        rd_en_d <= 1;
+        addr_i <= 32'h0000_0000;
+        addr_d <= 32'h0000_0000;
+        #1;
+
+        assert(stall_I == 1)
+            else $error("I stall not asserted");
+
+        assert(stall_D == 1)
+            else $error("D stall not asserted");
+        // First I stall gets serviced
+        while(stall_I) @(negedge clk);
+        rd_en_i <= 0;
+        $display("[TB] rd_data_i = 0x%08h (expected 0xDEADBEEF)", rd_data_i);
+
+        while(stall_D) @(negedge clk);
+        rd_en_d <= 0;
+        $display("[TB] rd_data_d = 0x%08h (expected 0xDEADBEEF)", rd_data_d);
 
         #1000;
         $finish;
