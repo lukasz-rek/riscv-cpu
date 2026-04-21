@@ -10,3 +10,4 @@ fpga_logs/
 vivado_proj/
 .srcs/
 .Xil/
+xvlog.pb

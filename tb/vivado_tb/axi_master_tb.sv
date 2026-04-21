@@ -12,12 +12,19 @@ module axi_master_tb;
 
     // Memory-side stimulus to the axi_master
     logic [31:0] addr_d;
+    logic [31:0] addr_i;
     logic        rd_en_d;
+    logic rd_en_i;
     logic wr_en;
     logic [31:0] rd_data_d;
+    logic [31:0] rd_data_i;
     logic        stall_D;
+    logic stall_I;
     logic [31:0] wr_addr;
     logic [31:0] wr_data;
+    logic [3:0] byte_en;
+
+    logic [127:0] evicted_line;
 
     // AXI interface between DUT and VIP
     axi_if m_axi_if();
@@ -30,17 +37,17 @@ module axi_master_tb;
     ) dut (
         .clk       (clk),
         .rst_n     (rst_n),
-        .addr_i    (32'h0),
+        .addr_i    (addr_i),
         .addr_d    (addr_d),
         .wr_addr   (wr_addr),
         .wr_data   (wr_data),
-        .byte_en   (4'hF),
+        .byte_en   (byte_en),
         .wr_en     (wr_en),
-        .rd_en_i   (1'b0),
+        .rd_en_i   (rd_en_i),
         .rd_en_d   (rd_en_d),
-        .rd_data_i (),
+        .rd_data_i (rd_data_i),
         .rd_data_d (rd_data_d),
-        .stall_I   (),
+        .stall_I   (stall_I),
         .stall_D   (stall_D),
         .m_axi     (m_axi_if.master)
     );
@@ -113,6 +120,12 @@ module axi_master_tb;
             128'h88888888_77777777_66666666_55555555,
             16'hFFFF
         );
+        slv_agent.mem_model.backdoor_memory_write(
+            36'h8_4000_4000,
+            128'hABCDABCD_BCDADBCA_CCDDDDCC_AABBBBAA,
+            16'hFFFF
+        );
+
 
         addr_d  = 32'h0;
         rd_en_d = 1'b0;
@@ -162,6 +175,16 @@ module axi_master_tb;
         assert(stall_D == 1);
         assert(dut.dirty_evict_d == 1);
 
+        while (stall_D) @(negedge clk); // Should have gotten written
+        $display("[TB] rd_data_d = 0x%08h (expected 0xAABBBBAA)", rd_data_d);
+
+        evicted_line = slv_agent.mem_model.backdoor_memory_read(36'h8_4000_0000);
+        assert(evicted_line[127:96] === 32'hABCD_DCBA)
+            else $error("[TB] Eviction mismatch: got 0x%08h", evicted_line[127:96]);
+
+        // Now let's test that doing reads on i cache works
+
+        // And that missing on both prioritizes I and doesn't mess anything up
 
         #1000;
         $finish;
@@ -182,6 +205,14 @@ module axi_master_tb;
         if (m_axi_if.rvalid && m_axi_if.rready)
             $display("[AXI]  R: data=0x%032h resp=%0d last=%0b @ %0t",
                      m_axi_if.rdata, m_axi_if.rresp, m_axi_if.rlast, $time);
+        if (m_axi_if.awvalid && m_axi_if.awready)
+                $display("[AXI] AW: addr=0x%09h len=%0d @ %0t",
+                            m_axi_if.awaddr, m_axi_if.awlen, $time);
+        if (m_axi_if.wvalid && m_axi_if.wready)
+            $display("[AXI]  W: data=0x%032h strb=%0h last=%0b @ %0t",
+                        m_axi_if.wdata, m_axi_if.wstrb, m_axi_if.wlast, $time);
+        if (m_axi_if.bvalid && m_axi_if.bready)
+            $display("[AXI]  B: resp=%0d @ %0t", m_axi_if.bresp, $time);
     end
 
 endmodule

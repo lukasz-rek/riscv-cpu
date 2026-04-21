@@ -33,7 +33,8 @@ module axi_cache #(
     output logic [DATA_WIDTH-1:0] rd_data,
     output logic                  miss,
     output logic                  dirty_evict,
-    output logic [         127:0] cache_evicted_data
+    output logic [         127:0] cache_evicted_data,
+    output logic [          31:0] evicted_addr
 );
 
     typedef struct packed {
@@ -109,6 +110,7 @@ module axi_cache #(
         end else begin
             // Some defaults to not propagate gibberish
             cache_evicted_data <= '0;
+            evicted_addr <= '0;
             if (first_miss) begin
                 miss_state_q <= 1;
             end
@@ -117,12 +119,6 @@ module axi_cache #(
             if (cache_wbe[i]) cache[requested_line][i*8+:8] <= cache_wdata[i*8+:8];
             if (cache_load != 2'b00) begin
                 // Depending on which beat we are on, we need diff base
-
-                // if (cache_load == 2'b01) begin
-                //     cache[requested_line][127:0] = cache_load_data;
-                // end else begin
-                //     cache[requested_line][255:128] = cache_load_data;
-                // end
 
                 if (cache_load == 2'b10) begin
                     cache_info[requested_line].valid <= 1'b1;
@@ -136,19 +132,15 @@ module axi_cache #(
                 // Note that this should happen only if line is dirty
                 if (first_miss) begin
                     cache_evicted_data <= cache[requested_line][127:0];
+                    evicted_addr <= {
+                        cache_info[requested_line].tag, requested_line, requested_block
+                    };
                     evicted_count_q <= 1;
                 end else if (evicted_count_q) begin
                     cache_evicted_data <= cache[requested_line][255:128];
                     evicted_count_q <= 0;
                 end else cache_evicted_data <= '0;
             end else if (wr_en) begin
-                // Modify data, set dirty
-                // for (int i = 0; i < 4; i++) begin
-                //     if (byte_en[i])
-                //         cache[requested_line][requested_block*32+i*8+:8] <= wr_data[i*8+:8];
-                // end
-
-
                 cache_info[requested_line].dirty <= 1'b1;
             end
         end

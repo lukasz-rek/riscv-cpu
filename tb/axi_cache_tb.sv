@@ -19,6 +19,7 @@ module axi_cache_tb;
     logic                miss;
     logic                dirty_evict;
     logic [127:0]        cache_evicted_data;
+    logic [31:0] evicted_addr;
 
 
     // ---------- DUT ----------
