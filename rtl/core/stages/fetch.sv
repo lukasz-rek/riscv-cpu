@@ -9,10 +9,12 @@ module fetch (
     input logic [31:0] mem_instr_data,
     input logic [31:0] id_next_pc,
     input logic id_next_pc_en,
+    input logic stall,
 
     output logic [31:0] id_instr_data,
     output logic [31:0] id_instr_pc,
 
+    output logic mem_enable,
     output logic [31:0] mem_instr_addr
 );
 
@@ -29,14 +31,16 @@ Sometimes we might want to have diff next_pc (stalls, BTB) and ID can override
     assign id_instr_data = (valid) ? mem_instr_data : '0;
     assign id_instr_pc = prev_pc;
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             pc <= 0;
             valid <= 0;
             prev_pc <= 0;
+            mem_enable <= 0;
         end else begin
+            mem_enable <= 1;
             pc <= (id_next_pc_en) ? id_next_pc + 4 : pc + 4;
-            valid <= 1;
+            valid <= (stall) ? 0 : 1;
             prev_pc <= mem_instr_addr;
         end
     end

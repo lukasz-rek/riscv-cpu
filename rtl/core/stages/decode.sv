@@ -201,6 +201,7 @@ module decode (
                         OP_I_MEM: begin
                             temp_signals.alu_op = ALU_ADD;
                             temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
+                            temp_signals.mem_wr_en = 1;
                             temp_signals.rs2_src = IMM;
                             // Rf writeback needs to shift by addr[1:0]
                             case (funct3)
@@ -261,7 +262,7 @@ module decode (
     // Save the outputs for next stage
 
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             ctrl_signals <= '0;
             cycle_count  <= '0;

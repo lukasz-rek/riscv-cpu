@@ -3,7 +3,7 @@
 import axi_vip_pkg::*;
 import axi_test_axi_vip_0_0_pkg::*;
 
-module tb_axi_read;
+module axi_tb;
 
     logic clk   = 0;
     logic rst_n = 0;
@@ -155,41 +155,38 @@ module tb_axi_read;
     // ── VIP slave memory agent ──
     axi_test_axi_vip_0_0_slv_mem_t slv_agent;
 
+    task automatic load_hex(input string filename, input logic [35:0] base_addr);
+        int fd, rc;
+        logic [31:0] word;
+        logic [31:0] rom [$];   // queue — grows automatically
+        logic [127:0] chunk;
+
+        fd = $fopen(filename, "r");
+        if (!fd) $fatal(1, "[TB] Cannot open %s", filename);
+
+        forever begin
+            rc = $fscanf(fd, "%h", word);
+            if (rc != 1) break;      // EOF or parse error — done
+            rom.push_back(word);
+        end
+        $fclose(fd);
+        $display("[TB] Loaded %0d words from %s", rom.size(), filename);
+
+        // Pack 4 words per 128-bit line and backdoor-write
+        for (int i = 0; i < rom.size(); i += 4) begin
+            chunk = '0;
+            for (int b = 0; b < 4 && (i+b) < rom.size(); b++)
+                chunk[b*32 +: 32] = rom[i+b];
+            slv_agent.mem_model.backdoor_memory_write(
+                base_addr + i*4, chunk, 16'hFFFF);
+        end
+    endtask
+
     initial begin
         slv_agent = new("slv_agent", vip_inst.axi_test_i.axi_vip_0.inst.IF);
         slv_agent.start_slave();
 
-        // Preload test data
-        slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0000,
-            128'h0A214958_41206D6F_7266206F_6C6C6548,
-            16'hFFFF
-        );
-        slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0010,
-            128'h0000000A_21646C72_6F57206F_6C6C6548,
-            16'hFFFF
-        );
-        slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0020,
-            128'h0000000A_73656C75_7220562D_43534952,
-            16'hFFFF
-        );
-        slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0030,
-            128'h00000000_00000A21_64656464_65626D45,
-            16'hFFFF
-        );
-        slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0040,
-            128'h00000000_00000A34_33323120_74736574,
-            16'hFFFF
-        );
-        slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0050,
-            128'h0A214958_41206D6F_7266206F_6C6C6548,
-            16'hFFFF
-        );
+        load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
 
         // Reset
         rst_n = 0;
@@ -198,7 +195,7 @@ module tb_axi_read;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #8_000_000;
+        #2_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;

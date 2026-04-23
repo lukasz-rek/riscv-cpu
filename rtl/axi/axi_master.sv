@@ -236,8 +236,8 @@ module axi_master #(
     // ── AXI R channel ──
     assign m_axi.rready  = (state_q == AXI_R);
 
-    assign stall_I   = 1'b0;
-    assign rd_data_i = '0;
+    // assign stall_I   = 1'b0;
+    // assign rd_data_i = '0;
 
     // ── AXI AW ──
     assign m_axi.awlen   = 8'd1;

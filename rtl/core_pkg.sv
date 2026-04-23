@@ -109,9 +109,10 @@ package core_pkg;
         logic [31:0] mem_addr2;
         logic [31:0] mem_wr_addr;
         logic [31:0] mem_wr_data;
-        logic mem_wr_en;  // TODO: could be merged?
+        logic mem_wr_en;
         logic [3:0] mem_byte_en;
         // Load
+        logic mem_rd_en;
         logic [1:0] load_offset;
         logic rs1_forward_exec;
         logic rs2_forward_exec;

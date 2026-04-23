@@ -24,27 +24,41 @@ module top #(
 
     logic mem_wr_en;
     logic rd_en_d;
+    logic rd_en_d_sel;  // Needed for MMIO
     logic rd_en_i;
     logic [3:0] byte_en_d;
 
-    logic [31:0] mem_rd_data_d;
+    logic [31:0] mem_rd_data_d;  // Needed for MMIO
+
     logic [31:0] rd_data_d;
+
     logic [31:0] rd_data_i;
     logic stall_D;
     logic stall_I;
 
+    always_ff @(posedge clk) begin
+        if (!rst_n) uart_rd_sel <= 1'b0;
+        else uart_rd_sel <= (addr_d == UART_ADDR);
+    end
 
     core cpu (
-            .clk(clk),
-            .rst_n(rst_n),
-            .mem_addr1(addr_i),
-            .mem_addr2(addr_d),
-            .mem_wr_en(mem_wr_en),
-            .mem_wr_data(mem_wr_data),
-            .mem_rd_data1(rd_data_i),
-            .mem_rd_data2(mem_rd_data_d),
-            .mem_byte_en(byte_en_d)
-        );
+        .clk(clk),
+        .rst_n(rst_n),
+        .mem_addr1(addr_i),
+        .mem_addr2(addr_d),
+        .mem_wr_en(mem_wr_en),
+        .mem_wr_data(mem_wr_data),
+        .mem_rd_data1(rd_data_i),
+        .mem_rd_data2(mem_rd_data_d),
+        .mem_byte_en(byte_en_d),
+        .stall_I(stall_I),
+        .stall_D(stall_D),
+        .rd_en_d(rd_en_d),
+        .rd_en_i(rd_en_i)
+    );
+
+    assign rd_en_d_sel   = uart_rd_sel ? 0 : rd_en_d;
+    assign mem_rd_data_d = uart_rd_sel ? {31'b0, fifo_full} : rd_data_d;
 
     axi_master #(
         .ADDR_WIDTH(32),
@@ -59,21 +73,13 @@ module top #(
         .byte_en  (byte_en_d),
         .wr_en    (mem_wr_en),
         .rd_en_i  (rd_en_i),
-        .rd_en_d  (rd_en_d),
+        .rd_en_d  (rd_en_d_sel),
         .rd_data_i(rd_data_i),
         .rd_data_d(rd_data_d),
         .stall_I  (stall_I),
         .stall_D  (stall_D),
         .m_axi    (m_axi)
     );
-
-
-    always_ff @(posedge clk) begin
-        if (!rst_n) uart_rd_sel <= 1'b0;
-        else uart_rd_sel <= (addr_d == UART_ADDR);
-    end
-
-    assign mem_rd_data_d = uart_rd_sel ? {31'b0, fifo_full} : rd_data_d;
 
     uart_tx #(
         .CLK_FREQ(58_000_000),

@@ -17,6 +17,8 @@ module exec (
     input  logic [31:0] rs1_data,
     input  logic [31:0] rs2_data,
 
+    input logic stall,
+
     output logic flush,
     output logic exec_stall,
     output logic [31:0] flush_pc
@@ -124,11 +126,11 @@ module exec (
 
     end
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             out_ctrl_signals <= 0;
         end else begin
-            out_ctrl_signals <= temp_signals;
+            out_ctrl_signals <= (stall) ? out_ctrl_signals : temp_signals;
         end
     end
 

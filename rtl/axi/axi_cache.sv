@@ -65,10 +65,12 @@ module axi_cache #(
     logic miss_state_q;
     logic evicted_count_q;
 
+
     // Handle the lookup
     wire [INDEX_BITS-1:0] requested_line;
     wire [TAG_BITS-1:0] tag;
     wire [OFFSET_BITS-3:0] requested_block;  // Shorter by 2 bits cause we're selecting words only
+    logic [OFFSET_BITS-3:0] requested_block_q;
 
     assign requested_block = addr[2+:OFFSET_BITS-2];
     assign requested_line = addr[OFFSET_BITS+:INDEX_BITS];
@@ -106,10 +108,12 @@ module axi_cache #(
             end
             miss_state_q <= 0;
             evicted_count_q <= 0;
+            requested_block_q <= 0;
             cache_line <= '0;
         end else begin
             // Some defaults to not propagate gibberish
             cache_evicted_data <= '0;
+            requested_block_q <= requested_block;
             evicted_addr <= '0;
             if (first_miss) begin
                 miss_state_q <= 1;
@@ -146,6 +150,6 @@ module axi_cache #(
         end
 
     end
-    assign rd_data = cache_line[requested_block*32+:32];
+    assign rd_data = cache_line[requested_block_q*32+:32];
 
 endmodule

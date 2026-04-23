@@ -73,7 +73,7 @@ module register_file #(
     end
 
     // Writing
-    always_ff @(posedge clk or negedge rst_n) begin : writeRegister
+    always_ff @(posedge clk) begin : writeRegister
         if (!rst_n) begin
             for (int i = 0; i < 32; i++) registers[i] <= '0;
         end else if (wr_en && wr_addr != 0)

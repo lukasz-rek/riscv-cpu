@@ -20,7 +20,6 @@ module axi_master_tb;
     logic [31:0] rd_data_i;
     logic        stall_D;
     logic stall_I;
-    logic [31:0] wr_addr;
     logic [31:0] wr_data;
     logic [3:0] byte_en;
 
@@ -39,7 +38,6 @@ module axi_master_tb;
         .rst_n     (rst_n),
         .addr_i    (addr_i),
         .addr_d    (addr_d),
-        .wr_addr   (wr_addr),
         .wr_data   (wr_data),
         .byte_en   (byte_en),
         .wr_en     (wr_en),
@@ -165,7 +163,6 @@ module axi_master_tb;
         // Now just do a write, later verify it was modified
         @(negedge clk);
         wr_en <= 1'b1;
-        wr_addr <= 32'h0000_000C;
         wr_data <= 32'hABCD_DCBA;
         byte_en <= '1;
 

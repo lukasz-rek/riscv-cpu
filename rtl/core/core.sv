@@ -8,12 +8,15 @@ module core (
     // Memory interface
     input logic [31:0] mem_rd_data1,
     input logic [31:0] mem_rd_data2,
+    input logic        stall_I,
+    input logic        stall_D,
 
+    output logic        rd_en_d,
+    output logic        rd_en_i,
     output logic [31:0] mem_addr1,
     output logic [31:0] mem_addr2,
     output logic        mem_wr_en,
     output logic [31:0] mem_wr_data,
-    output logic [31:0] mem_wr_addr,
     output logic [ 3:0] mem_byte_en
 );
 
@@ -38,7 +41,9 @@ module core (
         .id_instr_data(if_id_instr),
         .id_instr_pc  (if_id_pc),
 
-        .mem_instr_addr(mem_addr1)
+        .mem_instr_addr(mem_addr1),
+        .stall(stall_I),
+        .mem_enable(rd_en_i)
     );
 
     // Register file signals and instance
@@ -81,7 +86,9 @@ module core (
     ctrl_signals_t rd_if_forward_ctrl;
     logic [31:0] ex_id_flush_pc;
     logic exec_stall;
+    logic decode_stall;
 
+    assign decode_stall = exec_stall || stall_D;
     decode decode_stage (
         .clk  (clk),
         .rst_n(rst_n),
@@ -99,7 +106,7 @@ module core (
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
 
-        .exec_stall(exec_stall),
+        .exec_stall(decode_stall),
 
         .ctrl_signals(id_ex_ctrl)
 
@@ -121,6 +128,7 @@ module core (
         .rs2_addr(rs2),
         .rs1_data(rs1_data),
         .rs2_data(rs2_data),
+        .stall(stall_D),
 
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
@@ -135,11 +143,12 @@ module core (
 
         .in_ctrl_signals(ex_mem_ctrl),
 
-        .mem_addr2  (mem_addr2),
-        .mem_wr_en  (mem_wr_en),
+        .mem_addr2(mem_addr2),
+        .mem_wr_en(mem_wr_en),
         .mem_wr_data(mem_wr_data),
-        .mem_wr_addr(mem_wr_addr),
         .mem_byte_en(mem_byte_en),
+        .stall(stall_D),
+        .mem_enable(rd_en_d),
 
         .out_ctrl_signals(mem_rf_ctrl)
     );
