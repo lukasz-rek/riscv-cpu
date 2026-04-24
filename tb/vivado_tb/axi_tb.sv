@@ -152,6 +152,18 @@ module axi_tb;
         .S_AXI_0_bready     (axi_bready)
     );
 
+    logic [31:0] exec_instr;
+    logic [31:0] exec_pc;
+
+    logic [31:0] mem_instr;
+    logic [31:0] mem_pc;
+
+    assign exec_instr = dut.top_inst.cpu.exec_stage.in_ctrl_signals.instr;
+    assign exec_pc = dut.top_inst.cpu.exec_stage.in_ctrl_signals.pc;
+
+    assign mem_instr = dut.top_inst.cpu.mem_stage.in_ctrl_signals.instr;
+    assign mem_pc = dut.top_inst.cpu.mem_stage.in_ctrl_signals.pc;
+
     // ── VIP slave memory agent ──
     axi_test_axi_vip_0_0_slv_mem_t slv_agent;
 
@@ -186,7 +198,8 @@ module axi_tb;
         slv_agent = new("slv_agent", vip_inst.axi_test_i.axi_vip_0.inst.IF);
         slv_agent.start_slave();
 
-        load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
+        // load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
+        load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
 
         // Reset
         rst_n = 0;
@@ -207,7 +220,16 @@ module axi_tb;
     //         $display("[AXI] AR: addr=0x%08h @ %0t", axi_araddr, $time);
     //     if (axi_rvalid && axi_rready)
     //         $display("[AXI]  R: data=0x%032h resp=%0d @ %0t", axi_rdata, axi_rresp, $time);
+    //     if (axi_awvalid && axi_awready)
+    //             $display("[AXI] AW: addr=0x%09h len=%0d @ %0t",
+    //                         axi_awaddr, axi_awlen, $time);
+    //     if (axi_wvalid && axi_wready)
+    //         $display("[AXI]  W: data=0x%032h strb=%0h last=%0b @ %0t",
+    //                     axi_wdata, axi_wstrb, axi_wlast, $time);
+    //     if (axi_bvalid && axi_bready)
+    //         $display("[AXI]  B: resp=%0d @ %0t", axi_bresp, $time);
     // end
+
 
 
 

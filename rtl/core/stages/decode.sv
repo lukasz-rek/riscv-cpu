@@ -8,7 +8,7 @@ module decode (
 
     input logic [31:0] instr_data,
     input logic [31:0] instr_pc,
-
+    input logic valid,
     // Used to correct IF if we have stalls/flushes
     output logic [31:0] next_pc,
     output logic next_pc_en,
@@ -70,7 +70,9 @@ module decode (
         imm = '0;
         next_pc = '0;
         // Check if we gotta stall
-        if (flush) begin
+        if (!valid) begin
+            temp_signals = '0;
+        end else if (flush) begin
             temp_signals = '0;
             next_pc_en = 1;
             next_pc = flush_pc + 4;
@@ -201,7 +203,7 @@ module decode (
                         OP_I_MEM: begin
                             temp_signals.alu_op = ALU_ADD;
                             temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
-                            temp_signals.mem_wr_en = 1;
+                            temp_signals.mem_rd_en = 1;
                             temp_signals.rs2_src = IMM;
                             // Rf writeback needs to shift by addr[1:0]
                             case (funct3)

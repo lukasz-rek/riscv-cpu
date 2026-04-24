@@ -56,7 +56,7 @@ lint:
 
 wave:
 	@echo "Opening waveform"
-	@surfer logs/top_tb.fst -s logs/signals
+	@surfer logs/$(TOP_MODULE_NAME).fst -s logs/$(TOP_MODULE_NAME).surf.ron
 
 bitstream: $(BIN_FILE)
 	scp $(BIN_FILE) kria:~/bitstreams/bitstream.bit.bin

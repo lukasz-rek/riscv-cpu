@@ -26,7 +26,7 @@ module core (
     logic [31:0] if_id_pc;
     logic [31:0] next_pc;
     logic next_pc_en;
-
+    logic valid;
 
 
 
@@ -43,7 +43,8 @@ module core (
 
         .mem_instr_addr(mem_addr1),
         .stall(stall_I),
-        .mem_enable(rd_en_i)
+        .mem_enable(rd_en_i),
+        .valid(valid)
     );
 
     // Register file signals and instance
@@ -108,8 +109,8 @@ module core (
 
         .exec_stall(decode_stall),
 
-        .ctrl_signals(id_ex_ctrl)
-
+        .ctrl_signals(id_ex_ctrl),
+        .valid(valid)
     );
 
 
