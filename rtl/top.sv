@@ -12,7 +12,7 @@ module top #(
 
 
     // UART
-    localparam UART_ADDR = 32'h000_10000;
+    localparam UART_ADDR = 32'h0001_0000;
     logic fifo_full;
     logic uart_rd_sel;
 

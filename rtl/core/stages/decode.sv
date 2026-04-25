@@ -83,7 +83,7 @@ module decode (
         end else if (exec_stall) begin
             temp_signals = ctrl_signals;  // We want to keep same instruction
             next_pc_en = 1;
-            next_pc = ctrl_signals.pc + 4;
+            next_pc = instr_pc;
         end else begin
             temp_signals = '0;
 
