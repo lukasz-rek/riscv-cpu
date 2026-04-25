@@ -35,7 +35,7 @@ Sometimes we might want to have diff next_pc (stalls, BTB) and ID can override
 
     always_ff @(posedge clk) begin
         if (!rst_n) begin
-            pc <= 0;
+            pc <= 32'h8000_0000;
             valid_q <= 0;
             prev_pc <= 0;
             mem_enable <= 0;

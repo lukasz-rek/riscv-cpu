@@ -135,13 +135,13 @@ module axi_cache #(
                 // Handle 2 miss cycles needed to output all evicted data
                 // Note that this should happen only if line is dirty
                 if (first_miss) begin
-                    cache_evicted_data <= cache[requested_line][127:0];
+                    cache_evicted_data <= cache_line[127:0];
                     evicted_addr <= {
                         cache_info[requested_line].tag, requested_line, requested_block, 2'b0
                     };
                     evicted_count_q <= 1;
                 end else if (evicted_count_q) begin
-                    cache_evicted_data <= cache[requested_line][255:128];
+                    cache_evicted_data <= cache_line[255:128];
                     evicted_count_q <= 0;
                 end else cache_evicted_data <= '0;
             end else if (wr_en) begin

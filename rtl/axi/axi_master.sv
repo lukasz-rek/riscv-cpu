@@ -11,7 +11,12 @@ module axi_master #(
     input logic [ADDR_WIDTH-1:0] addr_i,
     input logic [ADDR_WIDTH-1:0] addr_d,
     /* verilator lint_on UNUSEDSIGNAL */
-    input logic [DATA_WIDTH-1:0] wr_data,
+    input logic [DATA_WIDTH-1:0] wr_data,$(BUILD_DIR)/program.hex: $(BUILD_DIR)/program.elf | $(BUILD_DIR)
+	$(OBJCOPY) -O binary $< $(BUILD_DIR)/program.bin
+	hexdump -v -e '1/4 "%08x\n"' $(BUILD_DIR)/program.bin > $@
+    
+    $(BUILD_DIR)/program.elf: $(BUILD_DIR)/program.o $(BUILD_DIR)/start.o | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(BUILD_DIR)/start.o $(BUILD_DIR)/program.o -o $@
     input logic [           3:0] byte_en,
 
     input  logic                  wr_en,
