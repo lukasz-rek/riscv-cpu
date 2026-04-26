@@ -28,8 +28,15 @@ int main() {
     int a = 110;
     int b = 10;
 
-    uart_putc('a');
-    uart_putc('\n');
+    // b *= 11;
+    // if ( (a -  b) == 0) {
+         // uart_putc('0');
+    // } else {
+         // uart_putc('1');
+    // }
+
+    // uart_putc('a');
+    // uart_putc('\n');
     print_hex(a/b);
     uart_putc('\n');
     // print_hex(cycle2);

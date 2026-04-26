@@ -69,9 +69,9 @@ module core (
         .rs2_data(rs2_data),
         .rs1_id_data(rs1_id_data),
 
-        .exec_forward_result(ex_id_frwrd_ctrl),
-        .mem_forward_result (ex_mem_ctrl),
-        .rf_forward_result  (rd_if_forward_ctrl),
+        // .exec_forward_result(ex_id_frwrd_ctrl),
+        // .mem_forward_result (ex_mem_ctrl),
+        // .rf_forward_result  (rd_if_forward_ctrl),
 
 
         .wr_en  (rf_wr_en),
@@ -82,14 +82,13 @@ module core (
 
 
     ctrl_signals_t id_ex_ctrl;
-    ctrl_signals_t ex_id_frwrd_ctrl;
+    // ctrl_signals_t ex_id_frwrd_ctrl;
     logic ex_id_flush;
-    ctrl_signals_t rd_if_forward_ctrl;
+    // ctrl_signals_t rd_if_forward_ctrl;
     logic [31:0] ex_id_flush_pc;
     logic exec_stall;
-    logic decode_stall;
+    logic freeze;
 
-    assign decode_stall = exec_stall || stall_D;
     decode decode_stage (
         .clk  (clk),
         .rst_n(rst_n),
@@ -107,10 +106,14 @@ module core (
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
 
-        .exec_stall(decode_stall),
+        .exec_stall(exec_stall),
+        .stall_I(stall_I),
+        .stall_D(stall_D),
+        // .ctrl_rf_write(rd_if_forward_ctrl),
 
         .ctrl_signals(id_ex_ctrl),
-        .valid(valid)
+        .valid(valid),
+        .freeze(freeze)
     );
 
 
@@ -124,12 +127,13 @@ module core (
         .in_ctrl_signals (id_ex_ctrl),
         .out_ctrl_signals(ex_mem_ctrl),
 
-        .forward_result(ex_id_frwrd_ctrl),
+        // .forward_result(ex_id_frwrd_ctrl),
         .rs1_addr(rs1),
         .rs2_addr(rs2),
         .rs1_data(rs1_data),
         .rs2_data(rs2_data),
-        .stall(stall_D),
+        .freeze  (freeze),
+        .stall_D (stall_D),
 
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
@@ -144,12 +148,11 @@ module core (
 
         .in_ctrl_signals(ex_mem_ctrl),
 
-        .mem_addr2(mem_addr2),
-        .mem_wr_en(mem_wr_en),
+        .mem_addr2  (mem_addr2),
+        .mem_wr_en  (mem_wr_en),
         .mem_wr_data(mem_wr_data),
         .mem_byte_en(mem_byte_en),
-        .stall(stall_D),
-        .mem_enable(rd_en_d),
+        .mem_enable (rd_en_d),
 
         .out_ctrl_signals(mem_rf_ctrl)
     );
@@ -164,8 +167,8 @@ module core (
         .wr_data (rf_wr_data),
         .mem_read(mem_rd_data2),
 
-        .in_ctrl_signals(mem_rf_ctrl),
-        .current_ctrl_signals(rd_if_forward_ctrl)
+        .in_ctrl_signals(mem_rf_ctrl)
+        // .current_ctrl_signals(rd_if_forward_ctrl)
     );
 
 

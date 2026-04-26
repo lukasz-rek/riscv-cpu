@@ -9,7 +9,7 @@ module exec (
     input  ctrl_signals_t in_ctrl_signals,
     output ctrl_signals_t out_ctrl_signals,
 
-    output ctrl_signals_t forward_result,
+    // output ctrl_signals_t forward_result,
 
     // Register file stuff
     output logic [ 4:0] rs1_addr,
@@ -17,7 +17,8 @@ module exec (
     input  logic [31:0] rs1_data,
     input  logic [31:0] rs2_data,
 
-    input logic stall,
+    input logic freeze,
+    input logic stall_D,
 
     output logic flush,
     output logic exec_stall,
@@ -53,7 +54,7 @@ module exec (
     );
 
     ctrl_signals_t temp_signals;
-    assign forward_result = temp_signals;
+    // assign forward_result = temp_signals;
 
     assign rs1_addr = in_ctrl_signals.rs1;
     assign rs2_addr = in_ctrl_signals.rs2;
@@ -130,7 +131,13 @@ module exec (
         if (!rst_n) begin
             out_ctrl_signals <= 0;
         end else begin
-            out_ctrl_signals <= (stall) ? out_ctrl_signals : temp_signals;
+            if (stall_D) begin
+                out_ctrl_signals <= out_ctrl_signals;
+            end else if (freeze) begin
+                out_ctrl_signals <= '0;
+            end else begin
+                out_ctrl_signals <= temp_signals;
+            end
         end
     end
 

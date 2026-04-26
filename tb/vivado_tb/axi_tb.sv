@@ -11,6 +11,9 @@ module axi_tb;
 
     always #8.62 clk = ~clk; // ~58 MHz
 
+    // ── Output dir ──
+    localparam string OUT_DIR = "/home/luki/Projekty/cpu/latest_run";
+
     // ── Flat AXI wires (matched to VIP's port set) ──
     // Read Address
     wire [35:0] axi_araddr;
@@ -152,6 +155,16 @@ module axi_tb;
         .S_AXI_0_bready     (axi_bready)
     );
 
+
+    localparam logic [31:0] TOHOST_ADDR = 32'h8001_2200;
+    localparam logic [31:0] SIG_BEGIN = 32'h8000_b250;
+    localparam logic [31:0] SIG_END   = 32'h8000_b840;
+    wire [31:0] cpu_addr = dut.top_inst.axi_m.addr_d;
+    wire [31:0] cpu_wdata = dut.top_inst.axi_m.wr_data;
+    wire        cpu_we    = dut.top_inst.axi_m.wr_en;
+    wire [3:0]   cpu_be = dut.top_inst.axi_m.byte_en;
+    logic [7:0] shadow [logic [31:0]];
+
     logic [31:0] exec_instr;
     logic [31:0] exec_pc;
 
@@ -194,13 +207,64 @@ module axi_tb;
         end
     endtask
 
+    task automatic dump_signature(input string filename);
+      int fd = $fopen(filename, "w");
+      if (!fd) $fatal(1, "cannot open %s", filename);
+      for (logic [31:0] a = SIG_BEGIN; a < SIG_END; a += 4) begin
+        logic [31:0] w;
+        for (int b = 0; b < 4; b++)
+          w[b*8 +: 8] = shadow.exists(a + b) ? shadow[a + b] : 8'h00;
+        $fwrite(fd, "%08x\n", w);
+      end
+      $fclose(fd);
+      $display("[TB] signature dumped to %s (%0d words)",
+               filename, (SIG_END - SIG_BEGIN) / 4);
+    endtask
+
+    // ── Debug: PC trace ──
+    int          trace_fd;
+    logic [31:0] last_unique_pc;
+    int          inst_cnt;
+    int          hb_cnt;
+
+    initial begin
+        void'($system($sformatf("mkdir -p %s", OUT_DIR)));
+        trace_fd = $fopen({OUT_DIR, "/trace.log"}, "w");
+        if (!trace_fd) $fatal(1, "[TB] cannot open %s/trace.log", OUT_DIR);
+    end
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            last_unique_pc <= '0;
+            inst_cnt       <= 0;
+            hb_cnt         <= 0;
+        end else begin
+            // Per-instruction trace
+            if (mem_pc != last_unique_pc && mem_pc != 0) begin
+                $fwrite(trace_fd, "%0t  PC=%08h  INSTR=%08h\n",
+                        $time, mem_pc, mem_instr);
+                last_unique_pc <= mem_pc;
+                inst_cnt       <= inst_cnt + 1;
+            end
+
+            // Heartbeat — also flushes the trace so it's tail-able
+            hb_cnt <= hb_cnt + 1;
+            if (hb_cnt == 50_000) begin
+                // $display("[%0t] hb: mem_pc=%08h instr=%08h retired=%0d",
+                //          $time, mem_pc, mem_instr, inst_cnt);
+                $fflush(trace_fd);
+                hb_cnt <= 0;
+            end
+        end
+    end
+
     initial begin
         slv_agent = new("slv_agent", vip_inst.axi_test_i.axi_vip_0.inst.IF);
         slv_agent.start_slave();
 
         // load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_C000_0000);
         // load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
-        load_hex("/home/luki/Projekty/rv32-tests/hex/I/I-add-00.hex", 36'h8_C000_0000);
+        load_hex("/home/luki/Projekty/rv32-tests/hex/I/I-beq-00.hex", 36'h8_C000_0000);
 
         // Reset
         rst_n = 0;
@@ -209,10 +273,59 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #32_000_000;
+        #2_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;
+    end
+
+
+    // ── Tohost handler ──
+    logic finish_pending;
+    initial finish_pending = 1'b0;
+
+    always_ff @(posedge clk) begin
+      if (cpu_we && cpu_addr == TOHOST_ADDR) begin
+        $display("[%0t] tohost <= 0x%08h (PC=0x%08h)", $time, cpu_wdata, mem_pc);
+        case (cpu_wdata)
+          32'd1: begin
+            $display("==== TEST PASSED ====\n");
+            dump_signature({OUT_DIR, "/DUT.signature"});
+            finish_pending <= 1'b1;
+          end
+          32'd3: begin
+            $display("==== TEST FAILED ====\n");
+            finish_pending <= 1'b1;
+          end
+          32'd0: ;
+          default: $display("[TB] tohost unexpected: 0x%08h", cpu_wdata);
+        endcase
+      end
+    end
+
+    // Drain UART output before $finish
+    initial begin
+      wait (finish_pending);
+      #10ms;
+      $finish;
+    end
+
+    always @(posedge clk) begin
+      if (cpu_we && cpu_addr != TOHOST_ADDR) begin
+        for (int b = 0; b < 4; b++)
+          if (cpu_be[b])
+            shadow[(cpu_addr & ~32'h3) + b] = cpu_wdata[b*8 +: 8];
+      end
+    end
+
+    // ── Catch-all flush/close on any sim end ──
+    final begin
+        if (trace_fd) begin
+            $fflush(trace_fd);
+            $fclose(trace_fd);
+        end
+        $display("[TB] final: %0d instructions retired, last_pc=0x%08h",
+                 inst_cnt, last_unique_pc);
     end
 
     // ── Monitor AXI reads ──

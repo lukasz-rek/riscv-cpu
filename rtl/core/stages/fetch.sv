@@ -29,7 +29,7 @@ We just set instructions for next cycle and pass along one we have now.
 Sometimes we might want to have diff next_pc (stalls, BTB) and ID can override
 */
     assign id_instr_data = (valid) ? mem_instr_data : '0;
-    assign id_instr_pc   = prev_pc;
+    assign id_instr_pc = prev_pc;
     assign mem_instr_addr = (id_next_pc_en && valid) ? id_next_pc : pc;
     assign valid = valid_q;
 

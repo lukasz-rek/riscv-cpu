@@ -13,7 +13,7 @@ module axi_master #(
     /* verilator lint_on UNUSEDSIGNAL */
     input logic [DATA_WIDTH-1:0] wr_data,
 
-    input logic [           3:0] byte_en,
+    input logic [3:0] byte_en,
 
     input  logic                  wr_en,
     input  logic                  rd_en_i,

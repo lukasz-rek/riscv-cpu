@@ -64,7 +64,7 @@ module top #(
         .ADDR_WIDTH(32),
         .DATA_WIDTH(32),
         .START_ADDR(36'h8_4000_0000)
-    ) dut (
+    ) axi_m (
         .clk      (clk),
         .rst_n    (rst_n),
         .addr_i   (addr_i),

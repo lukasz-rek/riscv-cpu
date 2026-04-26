@@ -18,9 +18,9 @@ module register_file #(
 
     // Forwarding
     /* verilator lint_off UNUSEDSIGNAL */
-    input ctrl_signals_t mem_forward_result,
-    input ctrl_signals_t rf_forward_result,
-    input ctrl_signals_t exec_forward_result,
+    // input ctrl_signals_t mem_forward_result,
+    // input ctrl_signals_t rf_forward_result,
+    // input ctrl_signals_t exec_forward_result,
     /* verilator lint_on UNUSEDSIGNAL */
 
     // Writing
@@ -36,37 +36,37 @@ module register_file #(
     always_comb begin
 
         // RS1
-        if (mem_forward_result.rd == rs1_addr && rs1_addr != '0 && mem_forward_result.rf_wr_en ) begin
-            rs1_data = mem_forward_result.rf_wr_data;
-        end else if (rf_forward_result.rd == rs1_addr && rs1_addr != '0 && rf_forward_result.rf_wr_en) begin
-            rs1_data = rf_forward_result.rf_wr_data;
-        end else begin
-            rs1_data = registers[rs1_addr];
-        end
+        // if (mem_forward_result.rd == rs1_addr && rs1_addr != '0 && mem_forward_result.rf_wr_en ) begin
+        // rs1_data = mem_forward_result.rf_wr_data;
+        // end else if (rf_forward_result.rd == rs1_addr && rs1_addr != '0 && rf_forward_result.rf_wr_en) begin
+        // rs1_data = rf_forward_result.rf_wr_data;
+        // end else begin
+        rs1_data = registers[rs1_addr];
+        // end
 
         // RS2
-        if (mem_forward_result.rd == rs2_addr && rs2_addr != '0 && mem_forward_result.rf_wr_en ) begin
-            rs2_data = mem_forward_result.rf_wr_data;
-        end else if (rf_forward_result.rd == rs2_addr && rs2_addr != '0 && rf_forward_result.rf_wr_en) begin
-            rs2_data = rf_forward_result.rf_wr_data;
-        end else begin
-            rs2_data = registers[rs2_addr];
-        end
+        // if (mem_forward_result.rd == rs2_addr && rs2_addr != '0 && mem_forward_result.rf_wr_en ) begin
+        // rs2_data = mem_forward_result.rf_wr_data;
+        // end else if (rf_forward_result.rd == rs2_addr && rs2_addr != '0 && rf_forward_result.rf_wr_en) begin
+        // rs2_data = rf_forward_result.rf_wr_data;
+        // end else begin
+        rs2_data = registers[rs2_addr];
+        // end
 
         // RS1 used in decode for JALR, needs to include lookahead from exec
         // Skip loads (ALU_MEM_ADDR_READ) — their rf_wr_data is 0, actual value
         // isn't available until writeback. Decode stalls JALR for the extra cycle.
-        if (exec_forward_result.rd == rs1_id_addr && rs1_id_addr != '0 && exec_forward_result.rf_wr_en
-            && exec_forward_result.rf_writeback != ALU_MEM_ADDR_READ) begin
-            rs1_id_data = exec_forward_result.rf_wr_data;
-        end else if (mem_forward_result.rd == rs1_id_addr && rs1_id_addr != '0 && mem_forward_result.rf_wr_en
-            && mem_forward_result.rf_writeback != ALU_MEM_ADDR_READ) begin
-            rs1_id_data = mem_forward_result.rf_wr_data;
-        end else if (rf_forward_result.rd == rs1_id_addr && rs1_id_addr != '0 && rf_forward_result.rf_wr_en) begin
-            rs1_id_data = rf_forward_result.rf_wr_data;
-        end else begin
-            rs1_id_data = registers[rs1_id_addr];
-        end
+        // if (exec_forward_result.rd == rs1_id_addr && rs1_id_addr != '0 && exec_forward_result.rf_wr_en
+        // && exec_forward_result.rf_writeback != ALU_MEM_ADDR_READ) begin
+        // rs1_id_data = exec_forward_result.rf_wr_data;
+        // end else if (mem_forward_result.rd == rs1_id_addr && rs1_id_addr != '0 && mem_forward_result.rf_wr_en
+        // && mem_forward_result.rf_writeback != ALU_MEM_ADDR_READ) begin
+        // rs1_id_data = mem_forward_result.rf_wr_data;
+        // end else if (rf_forward_result.rd == rs1_id_addr && rs1_id_addr != '0 && rf_forward_result.rf_wr_en) begin
+        // rs1_id_data = rf_forward_result.rf_wr_data;
+        // end else begin
+        rs1_id_data = registers[rs1_id_addr];
+        // end
 
 
 
