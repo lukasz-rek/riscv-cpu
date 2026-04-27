@@ -16,14 +16,14 @@ void print_hex(uint32_t val) {
 }
 
 int main() {
-    // uint32_t cycle1, cycle2;
+    uint32_t cycle1, cycle2;
 
-    // __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle1));
+    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle1));
 
-    // __asm__ volatile ("nop");
-    // __asm__ volatile ("nop");
+    __asm__ volatile ("nop");
+    __asm__ volatile ("nop");
 
-    // __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle2));
+    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle2));
 
     int a = 110;
     int b = 10;

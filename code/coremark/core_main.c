@@ -63,10 +63,15 @@ iterate(void *pres)
 
     for (i = 0; i < iterations; i++)
     {
+        ee_printf("Iteration %d \n", i);
         crc      = core_bench_list(res, 1);
+        ee_printf("Print 1");
         res->crc = crcu16(crc, res->crc);
+        ee_printf("Print 2");
         crc      = core_bench_list(res, -1);
+        ee_printf("Print 3");
         res->crc = crcu16(crc, res->crc);
+        ee_printf("Print 4");
         if (i == 0)
             res->crclist = res->crc;
     }
@@ -282,6 +287,7 @@ for (i = 0; i < MULTITHREAD; i++)
     }
 #else
     iterate(&results[0]);
+    ee_printf("Done with iterations");
 #endif
     stop_time();
     total_time = get_time();

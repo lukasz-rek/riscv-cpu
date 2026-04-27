@@ -63,7 +63,7 @@ module top #(
     axi_master #(
         .ADDR_WIDTH(32),
         .DATA_WIDTH(32),
-        .START_ADDR(36'h8_4000_0000)
+        .START_ADDR(36'h7_C000_0000)
     ) axi_m (
         .clk      (clk),
         .rst_n    (rst_n),

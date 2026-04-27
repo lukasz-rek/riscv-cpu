@@ -114,7 +114,7 @@ module decode (
             // end else begin
             //     temp_signals = '0;
 
-
+            // $write("PC: %h, INSTR: %h\n", instr_pc, instr_data);
 
             temp_signals.pc = instr_pc;
             temp_signals.instr = instr_data;
