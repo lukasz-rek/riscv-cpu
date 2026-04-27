@@ -245,7 +245,8 @@ module decode (
                             temp_signals.alu_op = ALU_ADD;
                             temp_signals.rf_writeback = ALU_PC_INCR;
                             // TODO: handle this at the end
-                            next_pc = rs1_data + imm;
+                            // Force lsb 0 for alignment
+                            next_pc = (rs1_data + imm) & ~32'b1;
                             next_pc_en = 1;
                         end
                         OP_I_ALU: begin
@@ -302,7 +303,7 @@ module decode (
             flush_pc_q <= '0;
         end else begin
 
-            state_counter_q <= (valid && !exec_stall) ? state_counter_q + 2'd1 : state_counter_q;
+            state_counter_q <= (valid && !exec_stall && !stall_D) ? state_counter_q + 2'd1 : state_counter_q;
 
             // If flush asserted, save latch values
             if (flush) begin

@@ -3,7 +3,7 @@
 import axi_vip_pkg::*;
 import axi_test_axi_vip_0_0_pkg::*;
 
-module axi_tb;
+module riscv_arch_tb;
 
     logic clk   = 0;
     logic rst_n = 0;
@@ -11,8 +11,20 @@ module axi_tb;
 
     always #8.62 clk = ~clk; // ~58 MHz
 
-    // ── Output dir ──
-    localparam string OUT_DIR = "/home/luki/Projekty/cpu/latest_run";
+    // ── Runtime config via plusargs ──
+    string       HEX_FILE;
+    string       OUT_DIR_RT;
+    logic [31:0] TOHOST_ADDR;
+    logic [31:0] SIG_BEGIN;
+    logic [31:0] SIG_END;
+
+    initial begin
+        if (!$value$plusargs("HEX_FILE=%s",  HEX_FILE))    HEX_FILE    = "/home/luki/Projekty/cpu/code/build/program.hex";
+        if (!$value$plusargs("OUT_DIR=%s",   OUT_DIR_RT))  OUT_DIR_RT  = "/home/luki/Projekty/cpu/latest_run";
+        if (!$value$plusargs("TOHOST=%h",    TOHOST_ADDR)) TOHOST_ADDR = 32'h8001_2200;
+        if (!$value$plusargs("SIG_BEGIN=%h", SIG_BEGIN))   SIG_BEGIN   = 32'h8000_b250;
+        if (!$value$plusargs("SIG_END=%h",   SIG_END))     SIG_END     = 32'h8000_b840;
+    end
 
     // ── Flat AXI wires (matched to VIP's port set) ──
     // Read Address
@@ -155,27 +167,16 @@ module axi_tb;
         .S_AXI_0_bready     (axi_bready)
     );
 
-
-    localparam logic [31:0] TOHOST_ADDR = 32'h8001_2200;
-    localparam logic [31:0] SIG_BEGIN = 32'h8000_b250;
-    localparam logic [31:0] SIG_END   = 32'h8000_b840;
-    wire [31:0] cpu_addr = dut.top_inst.axi_m.addr_d;
+    wire [31:0] cpu_addr  = dut.top_inst.axi_m.addr_d;
     wire [31:0] cpu_wdata = dut.top_inst.axi_m.wr_data;
     wire        cpu_we    = dut.top_inst.axi_m.wr_en;
-    wire [3:0]   cpu_be = dut.top_inst.axi_m.byte_en;
+    wire [ 3:0] cpu_be    = dut.top_inst.axi_m.byte_en;
     logic [7:0] shadow [logic [31:0]];
 
-    logic [31:0] exec_instr;
-    logic [31:0] exec_pc;
-
-    logic [31:0] mem_instr;
-    logic [31:0] mem_pc;
-
-    assign exec_instr = dut.top_inst.cpu.exec_stage.in_ctrl_signals.instr;
-    assign exec_pc = dut.top_inst.cpu.exec_stage.in_ctrl_signals.pc;
-
-    assign mem_instr = dut.top_inst.cpu.mem_stage.in_ctrl_signals.instr;
-    assign mem_pc = dut.top_inst.cpu.mem_stage.in_ctrl_signals.pc;
+    wire [31:0] exec_instr = dut.top_inst.cpu.exec_stage.in_ctrl_signals.instr;
+    wire [31:0] exec_pc    = dut.top_inst.cpu.exec_stage.in_ctrl_signals.pc;
+    wire [31:0] mem_instr  = dut.top_inst.cpu.mem_stage.in_ctrl_signals.instr;
+    wire [31:0] mem_pc     = dut.top_inst.cpu.mem_stage.in_ctrl_signals.pc;
 
     // ── VIP slave memory agent ──
     axi_test_axi_vip_0_0_slv_mem_t slv_agent;
@@ -183,7 +184,7 @@ module axi_tb;
     task automatic load_hex(input string filename, input logic [35:0] base_addr);
         int fd, rc;
         logic [31:0] word;
-        logic [31:0] rom [$];   // queue — grows automatically
+        logic [31:0] rom [$];
         logic [127:0] chunk;
 
         fd = $fopen(filename, "r");
@@ -191,13 +192,12 @@ module axi_tb;
 
         forever begin
             rc = $fscanf(fd, "%h", word);
-            if (rc != 1) break;      // EOF or parse error — done
+            if (rc != 1) break;
             rom.push_back(word);
         end
         $fclose(fd);
         $display("[TB] Loaded %0d words from %s", rom.size(), filename);
 
-        // Pack 4 words per 128-bit line and backdoor-write
         for (int i = 0; i < rom.size(); i += 4) begin
             chunk = '0;
             for (int b = 0; b < 4 && (i+b) < rom.size(); b++)
@@ -208,17 +208,17 @@ module axi_tb;
     endtask
 
     task automatic dump_signature(input string filename);
-      int fd = $fopen(filename, "w");
-      if (!fd) $fatal(1, "cannot open %s", filename);
-      for (logic [31:0] a = SIG_BEGIN; a < SIG_END; a += 4) begin
-        logic [31:0] w;
-        for (int b = 0; b < 4; b++)
-          w[b*8 +: 8] = shadow.exists(a + b) ? shadow[a + b] : 8'h00;
-        $fwrite(fd, "%08x\n", w);
-      end
-      $fclose(fd);
-      $display("[TB] signature dumped to %s (%0d words)",
-               filename, (SIG_END - SIG_BEGIN) / 4);
+        int fd = $fopen(filename, "w");
+        if (!fd) $fatal(1, "cannot open %s", filename);
+        for (logic [31:0] a = SIG_BEGIN; a < SIG_END; a += 4) begin
+            logic [31:0] w;
+            for (int b = 0; b < 4; b++)
+                w[b*8 +: 8] = shadow.exists(a + b) ? shadow[a + b] : 8'h00;
+            $fwrite(fd, "%08x\n", w);
+        end
+        $fclose(fd);
+        $display("[TB] signature dumped to %s (%0d words)",
+                 filename, (SIG_END - SIG_BEGIN) / 4);
     endtask
 
     // ── Debug: PC trace ──
@@ -227,19 +227,12 @@ module axi_tb;
     int          inst_cnt;
     int          hb_cnt;
 
-    initial begin
-        void'($system($sformatf("mkdir -p %s", OUT_DIR)));
-        trace_fd = $fopen({OUT_DIR, "/trace.log"}, "w");
-        if (!trace_fd) $fatal(1, "[TB] cannot open %s/trace.log", OUT_DIR);
-    end
-
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             last_unique_pc <= '0;
             inst_cnt       <= 0;
             hb_cnt         <= 0;
         end else begin
-            // Per-instruction trace
             if (mem_pc != last_unique_pc && mem_pc != 0) begin
                 $fwrite(trace_fd, "%0t  PC=%08h  INSTR=%08h\n",
                         $time, mem_pc, mem_instr);
@@ -247,75 +240,86 @@ module axi_tb;
                 inst_cnt       <= inst_cnt + 1;
             end
 
-            // Heartbeat — also flushes the trace so it's tail-able
             hb_cnt <= hb_cnt + 1;
             if (hb_cnt == 50_000) begin
-                // $display("[%0t] hb: mem_pc=%08h instr=%08h retired=%0d",
-                //          $time, mem_pc, mem_instr, inst_cnt);
                 $fflush(trace_fd);
                 hb_cnt <= 0;
             end
         end
     end
 
+    // ── Main init ──
     initial begin
         slv_agent = new("slv_agent", vip_inst.axi_test_i.axi_vip_0.inst.IF);
         slv_agent.start_slave();
 
-        // load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_C000_0000);
-        load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_C000_0000);
-        // load_hex("/home/luki/Projekty/rv32-tests/hex/I/I-beq-00.hex", 36'h8_C000_0000);
+        #1; // let plusargs initial block settle
 
-        // Reset
+        void'($system($sformatf("mkdir -p %s", OUT_DIR_RT)));
+        trace_fd = $fopen({OUT_DIR_RT, "/trace.log"}, "w");
+        if (!trace_fd) $fatal(1, "[TB] cannot open trace.log in %s", OUT_DIR_RT);
+
+        load_hex(HEX_FILE, 36'h8_C000_0000);
+
         rst_n = 0;
         #500;
         rst_n = 1;
-        $display("[TB] Reset released at %0t", $time);
+        $display("[TB] Reset released at %0t | tohost=0x%08h sig=[0x%08h..0x%08h]",
+                 $time, TOHOST_ADDR, SIG_BEGIN, SIG_END);
 
-        // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #2_000_000;
-
-        $display("[TB] Simulation finished at %0t", $time);
-        $finish;
     end
-
 
     // ── Tohost handler ──
     logic finish_pending;
-    initial finish_pending = 1'b0;
+    logic tohost_done;
+    initial begin
+        finish_pending = 1'b0;
+        tohost_done    = 1'b0;
+    end
 
     always_ff @(posedge clk) begin
-      if (cpu_we && cpu_addr == TOHOST_ADDR) begin
-        $display("[%0t] tohost <= 0x%08h (PC=0x%08h)", $time, cpu_wdata, mem_pc);
-        case (cpu_wdata)
-          32'd1: begin
-            $display("==== TEST PASSED ====\n");
-            dump_signature({OUT_DIR, "/DUT.signature"});
-            finish_pending <= 1'b1;
-          end
-          32'd3: begin
-            $display("==== TEST FAILED ====\n");
-            finish_pending <= 1'b1;
-          end
-          32'd0: ;
-          default: $display("[TB] tohost unexpected: 0x%08h", cpu_wdata);
-        endcase
-      end
+        if (cpu_we && cpu_addr == TOHOST_ADDR && !tohost_done) begin
+            tohost_done <= 1'b1;
+            $display("[%0t] tohost <= 0x%08h (PC=0x%08h)", $time, cpu_wdata, mem_pc);
+            case (cpu_wdata)
+                32'd1: begin
+                    $display("==== TEST PASSED ====");
+                    dump_signature({OUT_DIR_RT, "/DUT.signature"});
+                    finish_pending <= 1'b1;
+                end
+                32'd3: begin
+                    $display("==== TEST FAILED ====");
+                    finish_pending <= 1'b1;
+                end
+                32'd0: ;
+                default: $display("[TB] tohost unexpected: 0x%08h", cpu_wdata);
+            endcase
+        end
     end
 
-    // Drain UART output before $finish
+    // Drain UART then finish — owns $finish on normal test completion
     initial begin
-      wait (finish_pending);
-      #10ms;
-      $finish;
+        wait (finish_pending);
+        #10ms;
+        $finish;
     end
 
+    // Timeout — only fires if test never completes
+    initial begin
+        #2_000_000;
+        if (!finish_pending) begin
+            $display("[TB] Timeout at %0t", $time);
+            $finish;
+        end
+    end
+
+    // ── Shadow memory (for signature) ──
     always @(posedge clk) begin
-      if (cpu_we && cpu_addr != TOHOST_ADDR) begin
-        for (int b = 0; b < 4; b++)
-          if (cpu_be[b])
-            shadow[(cpu_addr & ~32'h3) + b] = cpu_wdata[b*8 +: 8];
-      end
+        if (cpu_we && cpu_addr != TOHOST_ADDR) begin
+            for (int b = 0; b < 4; b++)
+                if (cpu_be[b])
+                    shadow[(cpu_addr & ~32'h3) + b] = cpu_wdata[b*8 +: 8];
+        end
     end
 
     // ── Catch-all flush/close on any sim end ──
@@ -328,23 +332,19 @@ module axi_tb;
                  inst_cnt, last_unique_pc);
     end
 
-    // ── Monitor AXI reads ──
+    // ── Monitor AXI (uncomment to debug) ──
     // always @(posedge clk) begin
     //     if (axi_arvalid && axi_arready)
     //         $display("[AXI] AR: addr=0x%08h @ %0t", axi_araddr, $time);
     //     if (axi_rvalid && axi_rready)
     //         $display("[AXI]  R: data=0x%032h resp=%0d @ %0t", axi_rdata, axi_rresp, $time);
     //     if (axi_awvalid && axi_awready)
-    //             $display("[AXI] AW: addr=0x%09h len=%0d @ %0t",
-    //                         axi_awaddr, axi_awlen, $time);
+    //         $display("[AXI] AW: addr=0x%09h len=%0d @ %0t", axi_awaddr, axi_awlen, $time);
     //     if (axi_wvalid && axi_wready)
     //         $display("[AXI]  W: data=0x%032h strb=%0h last=%0b @ %0t",
     //                     axi_wdata, axi_wstrb, axi_wlast, $time);
     //     if (axi_bvalid && axi_bready)
     //         $display("[AXI]  B: resp=%0d @ %0t", axi_bresp, $time);
     // end
-
-
-
 
 endmodule
