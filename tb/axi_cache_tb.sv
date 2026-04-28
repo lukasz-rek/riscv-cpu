@@ -18,7 +18,7 @@ module axi_cache_tb;
     logic [31:0]         rd_data;
     logic                miss;
     logic                dirty_evict;
-    logic [127:0]        cache_evicted_data;
+    logic [255:0]        cache_evicted_data;
     logic [31:0] evicted_addr;
 
 
@@ -101,7 +101,7 @@ module axi_cache_tb;
 
         // 4. Evict it, now that it's dirty we need to capture evicted data and verify
 
-        addr = 32'h0000_4000;
+        addr = 32'h0000_8000;
         #1;
         assert(miss == 1) else $error("expected miss during eviction, got %b", miss);
         assert(dirty_evict == 1) else $error("Evicted memory not marked dirty when it was");
@@ -109,19 +109,14 @@ module axi_cache_tb;
         // Verify proper data evicted 1st time
         @(negedge clk);
         rd_en = 0;
-        assert(cache_evicted_data == 128'hDEAD_BEEF_DCBA_DCBA_CAFE_BABE_EBEB_EBEB) else $error("Wrong cache data 1st eviction, got %h", cache_evicted_data);
-
-
-        @(negedge clk);
-        // And second time
-        assert(cache_evicted_data == 128'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0101_0202) else $error("Wrong cache data 2nd eviction, got %h", cache_evicted_data);
+        assert(cache_evicted_data == 256'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0101_0202_DEAD_BEEF_DCBA_DCBA_CAFE_BABE_EBEB_EBEB) else $error("Wrong cache data on eviction, got %h", cache_evicted_data);
 
 
        // Wait and write proper data
        repeat (4) @(negedge clk);
        assert(miss == 1) else $error("expected miss during eviction, got %b", miss);
        cache_load = 2'b01;
-       addr = 32'h0000_4000;
+       addr = 32'h0000_8000;
        cache_load_data = 128'h0101_0202_0303_0404_0505_0606_0707_0808;
        @(negedge clk);
        assert(miss == 1) else $error("expected miss during eviction, got %b", miss);

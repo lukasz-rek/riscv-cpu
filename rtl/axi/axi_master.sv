@@ -49,13 +49,14 @@ module axi_master #(
     logic         i_stall_in_progress;
 
     logic [127:0] cache_load_data;
-    logic [127:0] cache_evicted_data_d;
-    logic [127:0] cache_evicted_data_i;
-    logic [127:0] cache_evicted_data;
+    logic [255:0] cache_evicted_data_d;
+    logic [255:0] cache_evicted_data_i;
+    logic [255:0] cache_evicted_data;
 
     logic [127:0] evicted_buffer       [2];
     /* verilator lint_off UNUSEDSIGNAL */
-    logic [ 31:0] evicted_addr;
+    logic [ 31:0] evicted_addr_i;
+    logic [ 31:0] evicted_addr_d;
     /* verilator lint_on UNUSEDSIGNAL */
 
     typedef enum logic [4:0] {
@@ -91,7 +92,7 @@ module axi_master #(
         .miss(stall_D),
         .dirty_evict(dirty_evict_d),
         .cache_evicted_data(cache_evicted_data_d),
-        .evicted_addr(evicted_addr)
+        .evicted_addr(evicted_addr_d)
     );
 
     axi_cache #() i_cache (
@@ -112,7 +113,7 @@ module axi_master #(
         .miss(stall_I),
         .dirty_evict(dirty_evict_i),
         .cache_evicted_data(cache_evicted_data_i),
-        .evicted_addr(evicted_addr)
+        .evicted_addr(evicted_addr_i)
     );
 
     assign cache_load_d = (!i_stall_in_progress) ? cache_load : '0;
@@ -180,14 +181,14 @@ module axi_master #(
 
                 // Write progression
                 AXI_CAPTURE_EVICTED: begin
-                    if (beat_counter == 0) begin
-                        evicted_buffer[0] <= cache_evicted_data;
-                        awaddr_r <= 36'({evicted_addr[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
+                    if (i_stall_in_progress) begin
+                        awaddr_r <= 36'({evicted_addr_i[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                     end else begin
-                        evicted_buffer[1] <= cache_evicted_data;
-                        state_q <= AXI_AW;
+                        awaddr_r <= 36'({evicted_addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                     end
-                    beat_counter <= !beat_counter;
+                    evicted_buffer[0] <= cache_evicted_data[127:0];
+                    evicted_buffer[1] <= cache_evicted_data[255:128];
+                    state_q <= AXI_AW;
                 end
                 AXI_AW:
                 if (m_axi.awready) begin

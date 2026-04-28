@@ -4,7 +4,7 @@ module axi_cache #(
     parameter int DATA_WIDTH = 32,
 
     localparam int CACHE_LINE_SIZE = 8,  // 256 b always
-    parameter int CACHE_SIZE = 4,  // In 4KB blocks
+    parameter int CACHE_SIZE = 8,  // In 4KB blocks
 
     localparam int LINE_BYTES  = CACHE_LINE_SIZE * 4,
     localparam int OFFSET_BITS = $clog2(LINE_BYTES),
@@ -33,7 +33,7 @@ module axi_cache #(
     output logic [DATA_WIDTH-1:0] rd_data,
     output logic                  miss,
     output logic                  dirty_evict,
-    output logic [         127:0] cache_evicted_data,
+    output logic [         255:0] cache_evicted_data,
     output logic [          31:0] evicted_addr
 );
 
@@ -63,7 +63,6 @@ module axi_cache #(
     tag_entry_t cache_info[NUM_SETS];  // TAG, VALID, DIRTY
 
     logic miss_state_q;
-    logic evicted_count_q;
 
 
     // Handle the lookup
@@ -89,6 +88,10 @@ module axi_cache #(
         cache_wdata = '0;
         cache_wbe   = '0;
 
+        cache_evicted_data = cache_line;
+        evicted_addr = {
+            cache_info[requested_line].tag, requested_line, requested_block, 2'b0
+        };
         if (cache_load == 2'b01) begin
             cache_wdata[127:0] = cache_load_data;
             cache_wbe[15:0]    = '1;
@@ -107,14 +110,12 @@ module axi_cache #(
                 cache_info[i].valid <= 0;
             end
             miss_state_q <= 0;
-            evicted_count_q <= 0;
             requested_block_q <= 0;
             cache_line <= '0;
         end else begin
             // Some defaults to not propagate gibberish
-            cache_evicted_data <= '0;
+            // cache_evicted_data <= '0;
             requested_block_q <= requested_block;
-            evicted_addr <= '0;
             if (first_miss) begin
                 miss_state_q <= 1;
             end
@@ -134,16 +135,16 @@ module axi_cache #(
             end else if ((first_miss && dirty_evict) || miss_state_q) begin
                 // Handle 2 miss cycles needed to output all evicted data
                 // Note that this should happen only if line is dirty
-                if (first_miss) begin
-                    cache_evicted_data <= cache_line[127:0];
-                    evicted_addr <= {
-                        cache_info[requested_line].tag, requested_line, requested_block, 2'b0
-                    };
-                    evicted_count_q <= 1;
-                end else if (evicted_count_q) begin
-                    cache_evicted_data <= cache_line[255:128];
-                    evicted_count_q <= 0;
-                end else cache_evicted_data <= '0;
+                // if (first_miss) begin
+                //     // cache_evicted_data <= cache_line[127:0];
+                //     evicted_addr <= {
+                //         cache_info[requested_line].tag, requested_line, requested_block, 2'b0
+                //     };
+                //     evicted_count_q <= 1;
+                // end else if (evicted_count_q) begin
+                //     // cache_evicted_data <= cache_line[255:128];
+                //     evicted_count_q <= 0;
+                // end
             end else if (wr_en) begin
                 cache_info[requested_line].dirty <= 1'b1;
             end
@@ -151,5 +152,4 @@ module axi_cache #(
 
     end
     assign rd_data = cache_line[requested_block_q*32+:32];
-
 endmodule

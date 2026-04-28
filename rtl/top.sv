@@ -57,8 +57,12 @@ module top #(
         .rd_en_i(rd_en_i)
     );
 
-    assign rd_en_d_sel   = uart_rd_sel ? 0 : rd_en_d;
+    assign rd_en_d_sel   = (addr_d == UART_ADDR) ? 0 : rd_en_d;
     assign mem_rd_data_d = uart_rd_sel ? {31'b0, fifo_full} : rd_data_d;
+
+    logic axi_wr_en;
+
+    assign axi_wr_en = (addr_d == UART_ADDR) ? 0 : mem_wr_en;
 
     axi_master #(
         .ADDR_WIDTH(32),
@@ -71,7 +75,7 @@ module top #(
         .addr_d   (addr_d),
         .wr_data  (mem_wr_data),
         .byte_en  (byte_en_d),
-        .wr_en    (mem_wr_en),
+        .wr_en    (axi_wr_en),
         .rd_en_i  (rd_en_i),
         .rd_en_d  (rd_en_d_sel),
         .rd_data_i(rd_data_i),
