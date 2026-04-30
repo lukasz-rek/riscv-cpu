@@ -134,6 +134,7 @@ module axi_master #(
             // Prioritize I cache over D, let D wait longer if both stalled
             if (stall_I && (state_q == AXI_OFF)) begin
                 araddr_r <= 36'({addr_i[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
+                $write("Getting I %h passing ARADDR %h\n", addr_i, 36'({addr_i[ADDR_WIDTH-1:5], 5'b0}));
                 i_stall_in_progress <= 1;
                 if (dirty_evict_i) begin
                     state_q <= AXI_CAPTURE_EVICTED;
@@ -143,6 +144,7 @@ module axi_master #(
                 end
             end else if (stall_D && (state_q == AXI_OFF)) begin
                 araddr_r <= 36'({addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
+                $write("Getting D %h passing ARADDR %h\n", addr_d, 36'({addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR);
                 i_stall_in_progress <= 0;
                 if (dirty_evict_d) begin
                     state_q <= AXI_CAPTURE_EVICTED;
@@ -179,15 +181,18 @@ module axi_master #(
                     state_q <= AXI_OFF;
                 end
 
-                // Write progression
+                // Write progression_ADDR
                 AXI_CAPTURE_EVICTED: begin
                     if (i_stall_in_progress) begin
+                        $write("Evicted I %h\n", evicted_addr_i);
                         awaddr_r <= 36'({evicted_addr_i[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                     end else begin
+                        $write("Evicted D %h\n", evicted_addr_d);
                         awaddr_r <= 36'({evicted_addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                     end
                     evicted_buffer[0] <= cache_evicted_data[127:0];
                     evicted_buffer[1] <= cache_evicted_data[255:128];
+                    $write("Evicted %h\n", cache_evicted_data);
                     state_q <= AXI_AW;
                 end
                 AXI_AW:

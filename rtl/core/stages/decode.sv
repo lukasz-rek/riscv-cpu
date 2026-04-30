@@ -80,7 +80,9 @@ module decode (
         temp_signals = 0;
         freeze = '0;
 
-        if (valid && flush_latch_q) begin
+        if (!valid) begin
+            temp_signals = '0;
+        end else if (flush_latch_q) begin
             // If we're on valid instruction (no in progress I miss)
             next_pc_en = 1;
             next_pc = flush_pc_q;
@@ -309,6 +311,7 @@ module decode (
             if (flush) begin
                 flush_latch_q <= 1;
                 flush_pc_q <= flush_pc + 4;
+                state_counter_q <= '0;
             end else if ((instr_pc == flush_pc_q) && valid) begin
                 // Possibly clear flush_latch if we got requested address as valid isntr
                 flush_latch_q <= 0;
