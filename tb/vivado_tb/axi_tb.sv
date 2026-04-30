@@ -262,8 +262,8 @@ module axi_tb;
         slv_agent = new("slv_agent", vip_inst.axi_test_i.axi_vip_0.inst.IF);
         slv_agent.start_slave();
 
-        load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
-        // load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
+        // load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
+        load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/rv32-tests/hex/I/I-beq-00.hex", 36'h8_C000_0000);
 
         // Reset
@@ -273,7 +273,7 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #2_000_000;
+        #64_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;
@@ -329,20 +329,20 @@ module axi_tb;
     end
 
     //── Monitor AXI reads ──
-    always @(posedge clk) begin
-        if (axi_arvalid && axi_arready)
-            $display("[AXI] AR: addr=0x%08h @ %0t", axi_araddr, $time);
-        if (axi_rvalid && axi_rready)
-            $display("[AXI]  R: data=0x%032h resp=%0d @ %0t", axi_rdata, axi_rresp, $time);
-        if (axi_awvalid && axi_awready)
-                $display("[AXI] AW: addr=0x%09h len=%0d @ %0t",
-                            axi_awaddr, axi_awlen, $time);
-        if (axi_wvalid && axi_wready)
-            $display("[AXI]  W: data=0x%032h strb=%0h last=%0b @ %0t",
-                        axi_wdata, axi_wstrb, axi_wlast, $time);
-        if (axi_bvalid && axi_bready)
-            $display("[AXI]  B: resp=%0d @ %0t", axi_bresp, $time);
-    end
+    // always @(posedge clk) begin
+    //     if (axi_arvalid && axi_arready)
+    //         $display("[AXI] AR: addr=0x%08h @ %0t", axi_araddr, $time);
+    //     if (axi_rvalid && axi_rready)
+    //         $display("[AXI]  R: data=0x%032h resp=%0d @ %0t", axi_rdata, axi_rresp, $time);
+    //     if (axi_awvalid && axi_awready)
+    //             $display("[AXI] AW: addr=0x%09h len=%0d @ %0t",
+    //                         axi_awaddr, axi_awlen, $time);
+    //     if (axi_wvalid && axi_wready)
+    //         $display("[AXI]  W: data=0x%032h strb=%0h last=%0b @ %0t",
+    //                     axi_wdata, axi_wstrb, axi_wlast, $time);
+    //     if (axi_bvalid && axi_bready)
+    //         $display("[AXI]  B: resp=%0d @ %0t", axi_bresp, $time);
+    // end
 
 
 

@@ -1,5 +1,3 @@
-ENTRY(_start)
-
 SECTIONS {
     . = 0x80000000;
 
@@ -10,7 +8,16 @@ SECTIONS {
 
     .rodata : { *(.rodata*) }
     .data : { *(.data*) *(.sdata*) }
-    .bss : { *(.bss*) *(.sbss*) *(COMMON) }
+
+    _bss_start = .;
+
+    .bss : {
+        *(.bss*)
+        *(.sbss*)
+        *(COMMON)
+    }
+
+    _bss_end = ALIGN(4);
 
     _stack_top = 0x8000F000;
 }
