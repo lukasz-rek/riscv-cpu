@@ -86,12 +86,10 @@ module axi_cache #(
 
     always_comb begin
         cache_wdata = '0;
-        cache_wbe   = '0;
+        cache_wbe = '0;
 
         cache_evicted_data = cache_line;
-        evicted_addr = {
-            cache_info[requested_line].tag, requested_line, requested_block, 2'b0
-        };
+        evicted_addr = {cache_info[requested_line].tag, requested_line, requested_block, 2'b0};
         if (cache_load == 2'b01) begin
             cache_wdata[127:0] = cache_load_data;
             cache_wbe[15:0]    = '1;

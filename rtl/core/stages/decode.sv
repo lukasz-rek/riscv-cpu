@@ -81,26 +81,26 @@ module decode (
         freeze = '0;
 
         if (!valid) begin
-            temp_signals = '0;
+            // temp_signals = '0;
         end else if (flush_latch_q) begin
             // If we're on valid instruction (no in progress I miss)
             next_pc_en = 1;
             next_pc = flush_pc_q;
 
         end else if (exec_stall) begin
-            temp_signals = ctrl_signals;
+            // temp_signals = ctrl_signals;
             next_pc_en = 1;
             next_pc = instr_pc;
         end else if (state_counter_q != 2'b00) begin
             // We have no op
-            temp_signals = '0;
+            // temp_signals = '0;
             next_pc_en = 1;
             next_pc = instr_pc;
             // Check if we gotta stall
             // if (!valid) begin
             //     temp_signals = '0;
         end else if (stall_D) begin
-            temp_signals = ctrl_signals;
+            // temp_signals = ctrl_signals;
             next_pc_en = 1;
             next_pc = instr_pc;
             freeze = 1;
@@ -318,10 +318,17 @@ module decode (
             end
 
             // Propagate rd buffer values
-            ctrl_signals <= temp_signals;
+
+            if (exec_stall || stall_D) begin
+                ctrl_signals <= ctrl_signals;
+            end else if (!valid || state_counter_q != 2'b00) begin
+                ctrl_signals <= '0;
+            end else begin
+                ctrl_signals <= temp_signals;
+            end
             // rd_buffer <= (!data_hazard && !jalr_load_hazard && temp_signals.rf_writeback == ALU_MEM_ADDR_READ && !flush) ? rd : '0;
             // rd_buffer_2 <= rd_buffer;
-            cycle_count  <= cycle_count + 1;
+            cycle_count <= cycle_count + 1;
             // Handle instruction counting
             if (flush) begin
                 instr_count <= instr_count - 1;

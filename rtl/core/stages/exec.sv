@@ -31,12 +31,19 @@ module exec (
     alu_op_t alu_op;
     logic [31:0] alu_result;
     logic alu_zero;
+    logic alu_active;
+    logic alu_result_en;
     alu alu_inst (
+        .clk  (clk),
+        .rst_n(rst_n),
+
         .a(alu_op_a),
         .b(alu_op_b),
         .alu_op(alu_op),
         .result(alu_result),
-        .zero(alu_zero)
+        .zero(alu_zero),
+        .alu_active(alu_active),
+        .alu_result_en(alu_result_en)
     );
 
     logic div_result_en;
@@ -117,12 +124,14 @@ module exec (
         end
 
         // Handle exec stalls
-        if (alu_div_active && !div_result_en) begin
+        if ((alu_div_active && !div_result_en) || (alu_active && !alu_result_en)) begin
             exec_stall   = 1;
             temp_signals = '0;
         end else if (alu_div_active && div_result_en) begin
             // We have a result from division, so we can move forward
             temp_signals.rf_wr_data = div_alu_result;
+        end else if (alu_active && alu_result_en) begin
+            temp_signals.rf_wr_data = alu_result;
         end
 
     end

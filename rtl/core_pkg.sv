@@ -20,6 +20,9 @@ package core_pkg;
         ALU_SLT,  // Set Less than
         ALU_SLTU,
 
+        // Branching princess treatment
+        ALU_BRANCH,
+
         // M extension ops
         ALU_MUL,
         ALU_MULH,

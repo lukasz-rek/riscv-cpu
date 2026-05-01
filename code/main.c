@@ -30,11 +30,11 @@ int main() {
     // arr[0] = 1;
     // arr[1024] = 1;
 
-    volatile uint32_t *arr = (volatile uint32_t *)0x80004000;
+    // volatile uint32_t *arr = (volatile uint32_t *)0x80004000;
 
-    arr[0] = 1;
-    arr[8192] = 1;
-    arr[0]++;
+    // arr[0] = 1;
+    // arr[8192] = 1;
+    // arr[0]++;
 
 
 
@@ -50,8 +50,8 @@ int main() {
 
     // __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle2));
 
-    // int a = 110;
-    // int b = 10;
+    int a = 20;
+    int b = 4;
 
     // // b *= 11;
     // // if ( (a -  b) == 0) {
@@ -69,8 +69,8 @@ int main() {
     // }
 
     // // uart_putc('a');
-    uart_putc('E');
-    // print_hex(a/b);
+    // uart_putc('E');
+    print_hex(a * b);
     uart_putc('\n');
     // print_hex(cycle2);
     // uart_putc('\n');
