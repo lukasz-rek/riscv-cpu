@@ -273,7 +273,7 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #64_000_000;
+        #2_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;

@@ -55,6 +55,7 @@ module axi_master #(
 
     logic [127:0] evicted_buffer       [2];
     /* verilator lint_off UNUSEDSIGNAL */
+    logic [31:0] araddr_q;
     logic [ 31:0] evicted_addr_i;
     logic [ 31:0] evicted_addr_d;
     /* verilator lint_on UNUSEDSIGNAL */
@@ -62,6 +63,7 @@ module axi_master #(
     typedef enum logic [4:0] {
         AXI_OFF,
         // Read states
+        AXI_AR_REG,
         AXI_AR,
         AXI_R,
         AXI_R_DONE,  // Extra state for the actual requested read to go through
@@ -74,6 +76,11 @@ module axi_master #(
 
     state_t state_q;
     logic   beat_counter;
+    // We're gonna use this to improve timing a bit
+    logic wr_en_q;
+    logic d_out_stall_D;
+
+    assign stall_D = d_out_stall_D || (!wr_en_q && wr_en);
 
     axi_cache #() d_cache (
         .clk  (clk),
@@ -81,7 +88,7 @@ module axi_master #(
 
         .addr(addr_d),
         .wr_data(wr_data),
-        .wr_en(wr_en),
+        .wr_en(wr_en_q && wr_en),
         .rd_en(rd_en_d),
         .byte_en(byte_en),
 
@@ -89,7 +96,7 @@ module axi_master #(
         .cache_load_data(cache_load_data),
 
         .rd_data(rd_data_d),
-        .miss(stall_D),
+        .miss(d_out_stall_D),
         .dirty_evict(dirty_evict_d),
         .cache_evicted_data(cache_evicted_data_d),
         .evicted_addr(evicted_addr_d)
@@ -128,36 +135,43 @@ module axi_master #(
             wlast_r <= 0;
             wdata_r <= '0;
             cache_load <= '0;
+            wr_en_q <= 0;
             i_stall_in_progress <= 0;
         end else begin
             // If we're missing data then start up axi, do write if dirty
             // Prioritize I cache over D, let D wait longer if both stalled
             if (stall_I && (state_q == AXI_OFF)) begin
-                araddr_r <= 36'({addr_i[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
+                // araddr_r <= 36'({addr_i[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                 // $write("Getting I %h passing ARADDR %h\n", addr_i, 36'({addr_i[ADDR_WIDTH-1:5], 5'b0}));
                 i_stall_in_progress <= 1;
+                araddr_q <= addr_i;
                 if (dirty_evict_i) begin
                     state_q <= AXI_CAPTURE_EVICTED;
                     beat_counter <= 0;
                 end else begin
-                    state_q <= AXI_AR;
+                    state_q <= AXI_AR_REG;
                 end
-            end else if (stall_D && (state_q == AXI_OFF)) begin
-                araddr_r <= 36'({addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
+            end else if (d_out_stall_D && (state_q == AXI_OFF)) begin
+                // araddr_r <= 36'({addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
+                araddr_q <= addr_d;
                 // $write("Getting D %h passing ARADDR %h\n", addr_d, 36'({addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR);
                 i_stall_in_progress <= 0;
                 if (dirty_evict_d) begin
                     state_q <= AXI_CAPTURE_EVICTED;
                     beat_counter <= 0;
                 end else begin
-                    state_q <= AXI_AR;
+                    state_q <= AXI_AR_REG;
                 end
             end
 
-
+            wr_en_q <= wr_en;
 
             case (state_q)
                 AXI_OFF: ;
+                AXI_AR_REG: begin
+                    araddr_r <= 36'({araddr_q[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
+                    state_q <= AXI_AR;
+                end
                 // Reading progression
                 AXI_AR:
                 if (m_axi.arready) begin
@@ -217,6 +231,7 @@ module axi_master #(
                 AXI_B:
                 if (m_axi.bvalid) begin
                     // Now we need to go read the data requested to replace
+                    araddr_r <= 36'({araddr_q[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                     state_q <= AXI_AR;
                 end
                 default: ;
