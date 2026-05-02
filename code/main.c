@@ -41,42 +41,24 @@ int main() {
 
 
 
-    // uint32_t cycle1, cycle2;
+    uint32_t cycle1, cycle2;
 
-    // __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle1));
+    __asm__ volatile ("rdtime %0" : "=r"(cycle1));
 
-    // __asm__ volatile ("nop");
-    // __asm__ volatile ("nop");
+    __asm__ volatile ("nop");
+    __asm__ volatile ("nop");
 
-    // __asm__ volatile ("csrr %0, mcycle" : "=r"(cycle2));
+    __asm__ volatile ("rdtime %0" : "=r"(cycle2));
 
     int a = 20;
     int b = 4;
 
-    // // b *= 11;
-    // // if ( (a -  b) == 0) {
-    //      // uart_putc('0');
-    // // } else {
-    //      // uart_putc('1');
-    // // }
-    // uart_putc('\n');
-
-    // if ((a + b) == 120) {
-    //     uart_putc('y');
-
-    // } else {
-    //     uart_putc('n');
-    // }
-
-    // // uart_putc('a');
-    // uart_putc('E');
     print_hex(a * b);
     uart_putc('\n');
-    // print_hex(cycle2);
-    // uart_putc('\n');
-
-    // print_hex(a/b);
-    // uart_putc('\n');
+    print_hex(cycle1);
+    uart_putc('\n');
+    print_hex(cycle2);
+    uart_putc('\n');
 
 
     return 0;

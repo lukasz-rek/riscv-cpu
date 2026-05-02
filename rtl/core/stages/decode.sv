@@ -39,9 +39,9 @@ module decode (
     logic [6:0] funct7;
     logic [31:0] imm;
 
-    logic [31:0] cycle_count;
-    logic [31:0] instr_count;
-
+    logic [63:0] cycle_count;
+    logic [63:0] instr_count;
+    logic [11:0] csr;
     // Used for comibnational stuff and clocked once later
     ctrl_signals_t temp_signals;
 
@@ -59,6 +59,7 @@ module decode (
     assign rd = instruction[11:7];
     assign rs1 = instruction[19:15];
     assign rs2 = instruction[24:20];
+    assign csr = instruction[31:20];
 
     // logic data_hazard;
     // assign data_hazard = (rs1 != 0 && rd_buffer == rs1) || (rs2 != 0 && rd_buffer == rs2);
@@ -278,9 +279,20 @@ module decode (
                     temp_signals.rf_wr_data = (opcode == OP_LUI) ? imm : imm + instr_pc;
                 end
                 OP_SYSTEM: begin
-                    if (funct3 == 3'b010 && rs1_data == 32'b0) begin
-                        temp_signals.rf_wr_en   = 1;
-                        temp_signals.rf_wr_data = cycle_count;
+                    temp_signals.rf_wr_en   = 1;
+
+                    if (funct3 == 3'b010) begin
+                        case (csr)
+                            // cycle, time
+                            12'hC00, 12'hC01: temp_signals.rf_wr_data = cycle_count[31:0];
+                            // cycleh, timeh
+                            12'hC80, 12'hC81: temp_signals.rf_wr_data = cycle_count[63:32];
+                            // instret
+                            12'hC02: temp_signals.rf_wr_data = instr_count[31:0];
+                            // instreth
+                            12'hC82: temp_signals.rf_wr_data = instr_count[63:32];
+                            default:;
+                        endcase
                     end
                 end
                 default: ;
@@ -324,20 +336,13 @@ module decode (
             end else if (!valid || state_counter_q != 2'b00) begin
                 ctrl_signals <= '0;
             end else begin
+                // We get a new instruction
+                instr_count <= instr_count + 1;
                 ctrl_signals <= temp_signals;
             end
             // rd_buffer <= (!data_hazard && !jalr_load_hazard && temp_signals.rf_writeback == ALU_MEM_ADDR_READ && !flush) ? rd : '0;
             // rd_buffer_2 <= rd_buffer;
             cycle_count <= cycle_count + 1;
-            // Handle instruction counting
-            if (flush) begin
-                instr_count <= instr_count - 1;
-                // end else if (data_hazard || jalr_load_hazard || exec_stall) begin
-            end else if (exec_stall) begin
-                instr_count <= instr_count;
-            end else begin
-                instr_count <= instr_count + 1;
-            end
         end
     end
 

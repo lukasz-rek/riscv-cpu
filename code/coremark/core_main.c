@@ -22,6 +22,7 @@ Original Author: Shay Gal-on
 */
 #include "core_portme.h"
 #include "coremark.h"
+#include <stdint.h>
 
 /* Function: iterate
         Run the benchmark for a specified number of iterations.
@@ -433,12 +434,31 @@ for (i = 0; i < MULTITHREAD; i++)
             "Cannot validate operation for these seed values, please compare "
             "with results on a known platform.\n");
 
+    // Print some run params
+    uint32_t cycles, cyclesh;
+    uint32_t ret_instr, ret_instrh;
+
+    __asm__ volatile ("rdcycle   %0" : "=r"(cycles));
+    __asm__ volatile ("rdcycleh  %0" : "=r"(cyclesh));
+    __asm__ volatile ("rdinstret %0" : "=r"(ret_instr));
+    __asm__ volatile ("rdinstreth %0" : "=r"(ret_instrh));
+
+    uint64_t total_cycles = ((uint64_t)cyclesh << 32) | cycles;
+    uint64_t total_instret = ((uint64_t)ret_instrh << 32) | ret_instr;
+
+    ee_printf("\nGot %lu cycles and %lu instructions\n",
+              (unsigned long)total_cycles, (unsigned long)total_instret);
+    uint32_t cpi_int  = (uint32_t)(total_cycles / total_instret);
+    uint32_t cpi_frac = (uint32_t)((total_cycles * 100 / total_instret) % 100);
+    ee_printf("CPI: ~%lu.%02lu\n", (unsigned long)cpi_int, (unsigned long)cpi_frac);
+
 #if (MEM_METHOD == MEM_MALLOC)
     for (i = 0; i < MULTITHREAD; i++)
         portable_free(results[i].memblock[0]);
 #endif
     /* And last call any target specific code for finalizing */
     portable_fini(&(results[0].port));
+
 
     return MAIN_RETURN_VAL;
     DONE_FLAG = 0xDEADBEEF;

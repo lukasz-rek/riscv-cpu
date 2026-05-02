@@ -45,7 +45,7 @@ CORETIMETYPE
 barebones_clock()
 {
     ee_u32 cycles;
-    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycles));
+    __asm__ volatile ("rdcycle   %0" : "=r"(cycles));
     return cycles;
 }
 /* Define : TIMER_RES_DIVIDER
