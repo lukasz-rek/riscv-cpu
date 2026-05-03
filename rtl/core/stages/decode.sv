@@ -43,11 +43,6 @@ module decode (
     // Used for comibnational stuff and clocked once later
     ctrl_signals_t temp_signals;
 
-    // Keep track of data hazards, only use after load
-    // logic [4:0] rd_buffer;
-    // logic [4:0] rd_buffer_2;  // 2nd cycle tracking for JALR-after-load
-
-
     assign instruction = instr_data;
 
     // 2nd: Decode
@@ -59,14 +54,6 @@ module decode (
     assign rs2 = instruction[24:20];
     assign csr = instruction[31:20];
 
-    // logic data_hazard;
-    // assign data_hazard = (rs1 != 0 && rd_buffer == rs1) || (rs2 != 0 && rd_buffer == rs2);
-
-    // JALR reads rs1 in decode — needs load data available in WB, not mem
-    // logic jalr_load_hazard;
-    // assign jalr_load_hazard = (opcode == OP_JALR) && (rs1 != 0) && (rd_buffer_2 == rs1);
-
-    logic [1:0] state_counter_q;
     logic flush_latch_q;
     logic [31:0] flush_pc_q;
 
@@ -87,26 +74,11 @@ module decode (
         end else if (exec_stall) begin
             next_pc_en = 1;
             next_pc = instr_pc;
-            // end else if (state_counter_q != 2'b00) begin
-            //     // We have no op
-            //     next_pc_en = 1;
-            //     next_pc = instr_pc;
         end else if (stall_D) begin
             next_pc_en = 1;
             next_pc = instr_pc;
             freeze = 1;
         end else begin
-            // end else if (data_hazard || jalr_load_hazard) begin
-            //     temp_signals = '0;
-            //     next_pc_en = (rst_n) ? '1 : '0;
-            //     next_pc = instr_pc;
-            // end else if (exec_stall) begin
-            //     temp_signals = ctrl_signals;  // We want to keep same instruction
-            //     next_pc_en = 1;
-            //     next_pc = instr_pc;
-            // end else begin
-            //     temp_signals = '0;
-
 
             temp_signals.pc = instr_pc;
             temp_signals.instr = instr_data;
@@ -302,26 +274,18 @@ module decode (
             ctrl_signals <= '0;
             cycle_count <= '0;
             instr_count <= '0;
-            // rd_buffer    <= '0;
-            // rd_buffer_2  <= '0;
-            // state_counter_q <= '0;
             flush_latch_q <= 0;
             flush_pc_q <= '0;
         end else begin
-
-            // state_counter_q <= (valid && !exec_stall && !stall_D) ? state_counter_q + 2'd1 : state_counter_q;
 
             // If flush asserted, save latch values
             if (flush) begin
                 flush_latch_q <= 1;
                 flush_pc_q <= flush_pc;
-                // state_counter_q <= '0;
             end else if ((instr_pc == flush_pc_q) && valid) begin
                 // Possibly clear flush_latch if we got requested address as valid isntr
                 flush_latch_q <= 0;
             end
-
-            // Propagate rd buffer values
 
             if (exec_stall || stall_D) begin
                 ctrl_signals <= ctrl_signals;
@@ -332,8 +296,7 @@ module decode (
                 instr_count  <= instr_count + 1;
                 ctrl_signals <= temp_signals;
             end
-            // rd_buffer <= (!data_hazard && !jalr_load_hazard && temp_signals.rf_writeback == ALU_MEM_ADDR_READ && !flush) ? rd : '0;
-            // rd_buffer_2 <= rd_buffer;
+
             cycle_count <= cycle_count + 1;
         end
     end

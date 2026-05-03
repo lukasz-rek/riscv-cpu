@@ -2,8 +2,8 @@ This is just a riscv32 + extensions CPU I'm making for (sometimes questionable) 
 
 Stuff still to be done before linux ready:
 - [x] Add proper resets from kv260 host
-- [ ] Move memory from BRAM into DDR via axi (update: works in tests, needs actual integration)
-  - [ ] Will probably require some smol cache to not tank perf
+- [x] Move memory from BRAM into DDR via axi (update: works in tests, needs actual integration)
+  - [x] Will probably require some smol cache to not tank perf
 - [ ] Tidy up UART interface
 - [ ] Implement A extension
 - [ ] Implement MMU
@@ -11,30 +11,11 @@ Stuff still to be done before linux ready:
 
 # Current stats
 
-See [Benchmarks](docs/benchmarks.md) for whole progress, but seems we are only stable at those stats for now:
+See [Benchmarks](docs/benchmarks.md) for whole progress, but this is latest results:
 
-58 MHz, riscv32mi, non-restoring division with CPI ~1.25
-```
-Starting coremark
-2K performance run parameters for coremark.
-CoreMark Size    : 666
-Total ticks      : 806703110
-Total time (secs): 13
-Iterations/Sec   : 184
-Iterations       : 2400
-Compiler version : GCC15.2.0
-Compiler flags   : -O3
-Memory location  : STACK
-seedcrc          : 0xe9f5
-[0]crclist       : 0xe714
-[0]crcmatrix     : 0x1fd7
-[0]crcstate      : 0x8e3a
-[0]crcfinal      : 0x382f
-Correct operation validated. See README.md for run and reporting rules.
-```
+80 MHz, riscv32im_zicntr, pipelined with access to 1GB DDR over AXI, 2 32 KB I and D caches. 
 
-Temp 
-At 80 Mhz
+It's also passing the riscv ISA [tests](https://github.com/riscv/riscv-arch-test) for I and M extensions.
 ```
 Starting coremark                                                                                       
 2K performance run parameters for coremark.                                                             
@@ -60,24 +41,27 @@ CPI: ~1.52
 
 # Build
 
-Have verilator, verible, gtkwave and make installed
+After I finalize block design I hope to make scripts that regenerate it and run whole synth/impl/bit flow, but a backup is there in *scripts* folder. Once you have it
 
 ```
-# To build and then run main core with the code from code/main.c
-make build run
 
-# To re-compile code in code/main.c, tho it should happen with above target
+# To re-compile code in code/main.c, or coremark
 make code
+make coremark
 
 # For quick linting checks or formatting with verible
 make lint
 make format
 
-# To build & run for specific module
+# To build & run for specific module, especially the non vivado needing tests
 make build TOP_MODULE_NAME=register_file run
 
-# To check some waves
-gtkwave logs/waveform.fst
+# Whole core integration tests use Vivado AXI VIP, so require a test.bd + xsim
+./scripts/run_sim.sh axi_tb 
+./scripts/run_sim.sh module_name
 
+# You can also run all ISA checks, tho this requires some setup and can maybe be run better than you. Point to directory that has .elf files of each self-checking binary
+./scripts/run_arch_test.sh folder_name
 
+# To check some waves see files saves in logs/ after sim runs
 ```

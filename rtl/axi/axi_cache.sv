@@ -111,8 +111,6 @@ module axi_cache #(
             requested_block_q <= 0;
             cache_line <= '0;
         end else begin
-            // Some defaults to not propagate gibberish
-            // cache_evicted_data <= '0;
             requested_block_q <= requested_block;
             if (first_miss) begin
                 miss_state_q <= 1;
@@ -121,7 +119,7 @@ module axi_cache #(
             for (int i = 0; i < 32; i++)
             if (cache_wbe[i]) cache[requested_line][i*8+:8] <= cache_wdata[i*8+:8];
             if (cache_load != 2'b00) begin
-                // Depending on which beat we are on, we need diff base
+                // All stuff needs to be combinational so vivado infers bram, so it's only stage progression here
 
                 if (cache_load == 2'b10) begin
                     cache_info[requested_line].valid <= 1'b1;
@@ -130,19 +128,6 @@ module axi_cache #(
                     // Clear missed state
                     miss_state_q <= 0;
                 end
-            end else if ((first_miss && dirty_evict) || miss_state_q) begin
-                // Handle 2 miss cycles needed to output all evicted data
-                // Note that this should happen only if line is dirty
-                // if (first_miss) begin
-                //     // cache_evicted_data <= cache_line[127:0];
-                //     evicted_addr <= {
-                //         cache_info[requested_line].tag, requested_line, requested_block, 2'b0
-                //     };
-                //     evicted_count_q <= 1;
-                // end else if (evicted_count_q) begin
-                //     // cache_evicted_data <= cache_line[255:128];
-                //     evicted_count_q <= 0;
-                // end
             end else if (wr_en) begin
                 cache_info[requested_line].dirty <= 1'b1;
             end

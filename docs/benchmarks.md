@@ -135,3 +135,24 @@ seedcrc          : 0xe9f5
 Correct operation validated. See README.md for run and reporting rules.
 ```
 However, this leads to instabilities especially around reset handling. After fixing some Vivado warnings and shifting stuff around we're forced to drop down to 58 MHz :(, though now sim values are kinda accurate and no more funky behaviour.
+
+58 MHz, riscv32mi, non-restoring division with CPI ~1.25
+```
+Starting coremark
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 806703110
+Total time (secs): 13
+Iterations/Sec   : 184
+Iterations       : 2400
+Compiler version : GCC15.2.0
+Compiler flags   : -O3
+Memory location  : STACK
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0x382f
+Correct operation validated. See README.md for run and reporting rules.
+```
+Only AXI versions below:

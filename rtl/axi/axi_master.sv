@@ -32,7 +32,7 @@ module axi_master #(
         First try to request data via cache. If miss isn't raised then it's all good
         If miss gets raised, then raise respective stall, begin AXI fetch and cache replacement
         Depending on whether evicted data is dirty, write it back before reading
-        Once data arrives then return it on the same cycle
+        Once data arrives save it to cache and stall for a moment to let cache save it
     */
 
     logic         dirty_evict_d;
@@ -76,7 +76,9 @@ module axi_master #(
 
     state_t state_q;
     logic   beat_counter;
-    // We're gonna use this to improve timing a bit
+
+    // We're gonna use this to improve timing a bit by counterintuitevely stalling a bit
+    // This allows the overall pipeline signals to propagate better
     logic   wr_en_q;
     logic   d_out_stall_D;
 
@@ -141,7 +143,6 @@ module axi_master #(
             // If we're missing data then start up axi, do write if dirty
             // Prioritize I cache over D, let D wait longer if both stalled
             if (stall_I && (state_q == AXI_OFF)) begin
-                // araddr_r <= 36'({addr_i[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                 // $write("Getting I %h passing ARADDR %h\n", addr_i, 36'({addr_i[ADDR_WIDTH-1:5], 5'b0}));
                 i_stall_in_progress <= 1;
                 araddr_q <= addr_i;
@@ -152,7 +153,6 @@ module axi_master #(
                     state_q <= AXI_AR_REG;
                 end
             end else if (d_out_stall_D && (state_q == AXI_OFF)) begin
-                // araddr_r <= 36'({addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                 araddr_q <= addr_d;
                 // $write("Getting D %h passing ARADDR %h\n", addr_d, 36'({addr_d[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR);
                 i_stall_in_progress <= 0;
