@@ -8,21 +8,23 @@ module decode (
 
     input logic [31:0] instr_data,
     input logic [31:0] instr_pc,
-
+    input logic valid,
     // Used to correct IF if we have stalls/flushes
     output logic [31:0] next_pc,
     output logic next_pc_en,
 
-    output logic [4:0] rs1_addr,
-    input logic [31:0] rs1_data,
     // Flushing
+    /* verilator lint_off UNUSEDSIGNAL */
     input logic flush,
     input logic [31:0] flush_pc,
 
     // Sometimes exec might force delays due to multi-cycle instr
     input logic exec_stall,
-
-    output ctrl_signals_t ctrl_signals
+    input logic stall_I,
+    input logic stall_D,
+    /* verilator lint_on UNUSEDSIGNAL */
+    output ctrl_signals_t ctrl_signals,
+    output logic freeze
 );
 
     logic [31:0] instruction;
@@ -35,16 +37,11 @@ module decode (
     logic [6:0] funct7;
     logic [31:0] imm;
 
-    logic [31:0] cycle_count;
-    logic [31:0] instr_count;
-
+    logic [63:0] cycle_count;
+    logic [63:0] instr_count;
+    logic [11:0] csr;
     // Used for comibnational stuff and clocked once later
     ctrl_signals_t temp_signals;
-
-    // Keep track of data hazards, only use after load
-    logic [4:0] rd_buffer;
-    logic [4:0] rd_buffer_2;  // 2nd cycle tracking for JALR-after-load
-
 
     assign instruction = instr_data;
 
@@ -55,38 +52,33 @@ module decode (
     assign rd = instruction[11:7];
     assign rs1 = instruction[19:15];
     assign rs2 = instruction[24:20];
+    assign csr = instruction[31:20];
 
-    logic data_hazard;
-    assign data_hazard = (rs1 != 0 && rd_buffer == rs1) || (rs2 != 0 && rd_buffer == rs2);
-
-    // JALR reads rs1 in decode — needs load data available in WB, not mem
-    logic jalr_load_hazard;
-    assign jalr_load_hazard = (opcode == OP_JALR) && (rs1 != 0) && (rd_buffer_2 == rs1);
+    logic flush_latch_q;
+    logic [31:0] flush_pc_q;
 
     // First actually decode the signals
     always_comb begin
-        rs1_addr = rs1;
         next_pc_en = 0;
         imm = '0;
         next_pc = '0;
-        // Check if we gotta stall
-        if (flush) begin
-            temp_signals = '0;
+        temp_signals = 0;
+        freeze = '0;
+        if (!valid) begin
+
+        end else if (flush_latch_q) begin
+            // If we're on valid instruction (no in progress I miss)
             next_pc_en = 1;
-            next_pc = flush_pc + 4;
-        end else if (data_hazard || jalr_load_hazard) begin
-            temp_signals = '0;
-            next_pc_en = (rst_n) ? '1 : '0;
-            next_pc = instr_pc;
+            next_pc = flush_pc_q;
+
         end else if (exec_stall) begin
-            temp_signals = ctrl_signals;  // We want to keep same instruction
             next_pc_en = 1;
-            next_pc = ctrl_signals.pc + 4;
+            next_pc = instr_pc;
+        end else if (stall_D) begin
+            next_pc_en = 1;
+            next_pc = instr_pc;
+            freeze = 1;
         end else begin
-            temp_signals = '0;
-
-
-
 
             temp_signals.pc = instr_pc;
             temp_signals.instr = instr_data;
@@ -96,8 +88,9 @@ module decode (
             temp_signals.opcode = opcode;
 
             temp_signals.rd = rd;
-
-
+            if (valid) begin
+                // $write("PC: %h, INSTR: %h\n", instr_pc, instr_data);
+            end
 
             case (opcode)
                 OP_B: begin
@@ -196,12 +189,13 @@ module decode (
                 OP_I_MEM, OP_JALR, OP_I_ALU: begin
                     imm = {{20{instruction[31]}}, instruction[31:20]};
                     temp_signals.rf_wr_en = 1;
+                    temp_signals.rs2_src = IMM;
 
                     case (opcode)
                         OP_I_MEM: begin
                             temp_signals.alu_op = ALU_ADD;
                             temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
-                            temp_signals.rs2_src = IMM;
+                            temp_signals.mem_rd_en = 1;
                             // Rf writeback needs to shift by addr[1:0]
                             case (funct3)
                                 3'b000:  temp_signals.load_mask = LB;  // LB
@@ -214,14 +208,16 @@ module decode (
                         end
                         OP_JALR: begin
                             temp_signals.alu_op = ALU_ADD;
-                            temp_signals.rf_writeback = ALU_PC_INCR;
-                            // TODO: handle this at the end
-                            next_pc = rs1_data + imm;
-                            next_pc_en = 1;
+
+                            temp_signals.rf_writeback = ALU_JALR;
+
+                            // Already set what we're goind to store in register_file
+                            temp_signals.rf_wr_data = instr_pc + 4;
+                            temp_signals.rf_wr_data_valid = 1;
+
                         end
                         OP_I_ALU: begin
                             temp_signals.rf_writeback = ALU_REG;
-                            temp_signals.rs2_src = IMM;
                             case (funct3)
                                 3'b000:  temp_signals.alu_op = ALU_ADD;
                                 3'b010:  temp_signals.alu_op = ALU_SLT;
@@ -244,11 +240,23 @@ module decode (
                     imm = {instruction[31:12], 12'b0};
                     temp_signals.rf_wr_en = 1;
                     temp_signals.rf_wr_data = (opcode == OP_LUI) ? imm : imm + instr_pc;
+                    temp_signals.rf_wr_data_valid = 1;
                 end
                 OP_SYSTEM: begin
-                    if (funct3 == 3'b010 && rs1_data == 32'b0) begin
-                        temp_signals.rf_wr_en   = 1;
-                        temp_signals.rf_wr_data = cycle_count;
+                    temp_signals.rf_wr_en = 1;
+                    temp_signals.rf_wr_data_valid = 1;
+                    if (funct3 == 3'b010) begin
+                        case (csr)
+                            // cycle, time
+                            12'hC00, 12'hC01: temp_signals.rf_wr_data = cycle_count[31:0];
+                            // cycleh, timeh
+                            12'hC80, 12'hC81: temp_signals.rf_wr_data = cycle_count[63:32];
+                            // instret
+                            12'hC02: temp_signals.rf_wr_data = instr_count[31:0];
+                            // instreth
+                            12'hC82: temp_signals.rf_wr_data = instr_count[63:32];
+                            default: ;
+                        endcase
                     end
                 end
                 default: ;
@@ -261,27 +269,35 @@ module decode (
     // Save the outputs for next stage
 
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             ctrl_signals <= '0;
-            cycle_count  <= '0;
-            instr_count  <= '0;
-            rd_buffer    <= '0;
-            rd_buffer_2  <= '0;
+            cycle_count <= '0;
+            instr_count <= '0;
+            flush_latch_q <= 0;
+            flush_pc_q <= '0;
         end else begin
-            // Propagate rd buffer values
-            ctrl_signals <= temp_signals;
-            rd_buffer <= (!data_hazard && !jalr_load_hazard && temp_signals.rf_writeback == ALU_MEM_ADDR_READ && !flush) ? rd : '0;
-            rd_buffer_2 <= rd_buffer;
-            cycle_count <= cycle_count + 1;
-            // Handle instruction counting
+
+            // If flush asserted, save latch values
             if (flush) begin
-                instr_count <= instr_count - 1;
-            end else if (data_hazard || jalr_load_hazard || exec_stall) begin
-                instr_count <= instr_count;
-            end else begin
-                instr_count <= instr_count + 1;
+                flush_latch_q <= 1;
+                flush_pc_q <= flush_pc;
+            end else if ((instr_pc == flush_pc_q) && valid) begin
+                // Possibly clear flush_latch if we got requested address as valid isntr
+                flush_latch_q <= 0;
             end
+
+            if (exec_stall || stall_D) begin
+                ctrl_signals <= ctrl_signals;
+            end else if (!valid || flush || flush_latch_q) begin
+                ctrl_signals <= '0;
+            end else begin
+                // We get a new instruction
+                instr_count  <= instr_count + 1;
+                ctrl_signals <= temp_signals;
+            end
+
+            cycle_count <= cycle_count + 1;
         end
     end
 

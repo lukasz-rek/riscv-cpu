@@ -10,3 +10,5 @@ fpga_logs/
 vivado_proj/
 .srcs/
 .Xil/
+xvlog.pb
+latest_run/

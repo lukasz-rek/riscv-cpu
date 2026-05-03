@@ -8,9 +8,9 @@ module uart_tx #(
     input  logic        rst_n,
     input  logic [ 7:0] data,
     input  logic        uart_en,
-    input  logic [31:0] mem_wr_addr,  // Used to snoop on writes
+    input  logic [31:0] mem_wr_addr,      // Used to snoop on writes
     output logic        tx,
-    output logic        fifo_full
+    output logic        fifo_almost_full
 );
 
     // UART operations
@@ -36,11 +36,13 @@ module uart_tx #(
 
     wire fifo_empty = (wr_ptr == rd_ptr);
     wire fifo_push = uart_en && (mem_wr_addr == UART_ADDR);
+    wire [PTR_W:0] fifo_count = wr_ptr - rd_ptr;
 
-    assign fifo_full = (wr_ptr[PTR_W-1:0] == rd_ptr[PTR_W-1:0]) && (wr_ptr[PTR_W] != rd_ptr[PTR_W]);
+    assign fifo_almost_full = (fifo_count >= FIFO_DEPTH - 1);
+    // assign fifo_full = (wr_ptr[PTR_W-1:0] == rd_ptr[PTR_W-1:0]) && (wr_ptr[PTR_W] != rd_ptr[PTR_W]);
 
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             state     <= IDLE;
             tx        <= 1'b1;

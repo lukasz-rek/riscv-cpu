@@ -4,8 +4,8 @@ TB_FILES := $(wildcard tb/*.sv)
 VERILATOR_FLAGS = -Wall -Wno-fatal --x-assign fast --x-initial fast
 # Note to myself, never use threads, even 2 seem to kill perf
 VERILATOR_FLAGS += -CFLAGS "-O3 -march=native"
-# VERILATOR_FLAGS +=  --trace-structs --trace-fst --trace
-TOP_MODULE_NAME = top
+VERILATOR_FLAGS +=  --trace-structs --trace-fst --trace
+TOP_MODULE_NAME = top_wrapper
 
 # Stuff for copying over bitstream
 VIVADO_IMPL_DIR := $(HOME)/Projekty/cpu/vivado_proj/riscv_core.runs/impl_1
@@ -56,7 +56,7 @@ lint:
 
 wave:
 	@echo "Opening waveform"
-	@surfer logs/top_tb.fst -s logs/signals
+	@surfer logs/$(TOP_MODULE_NAME).fst -s logs/$(TOP_MODULE_NAME).surf.ron
 
 bitstream: $(BIN_FILE)
 	scp $(BIN_FILE) kria:~/bitstreams/bitstream.bit.bin

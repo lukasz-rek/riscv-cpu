@@ -45,7 +45,7 @@ CORETIMETYPE
 barebones_clock()
 {
     ee_u32 cycles;
-    __asm__ volatile ("csrr %0, mcycle" : "=r"(cycles));
+    __asm__ volatile ("rdcycle   %0" : "=r"(cycles));
     return cycles;
 }
 /* Define : TIMER_RES_DIVIDER
@@ -60,7 +60,7 @@ barebones_clock()
 #define MYTIMEDIFF(fin, ini)       ((fin) - (ini))
 #define TIMER_RES_DIVIDER          1
 #define SAMPLE_TIME_IMPLEMENTATION 1
-#define EE_TICKS_PER_SEC           58000000
+#define EE_TICKS_PER_SEC           80000000
 
 /** Define Host specific (POSIX), or target specific global time variables. */
 static CORETIMETYPE start_time_val, stop_time_val;

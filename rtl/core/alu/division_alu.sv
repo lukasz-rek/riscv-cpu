@@ -151,7 +151,7 @@ module division_alu (
     end
 
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             state_count <= '0;
             quotient_digit_q <= '1;

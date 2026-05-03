@@ -20,6 +20,9 @@ package core_pkg;
         ALU_SLT,  // Set Less than
         ALU_SLTU,
 
+        // Branching princess treatment
+        ALU_BRANCH,
+
         // M extension ops
         ALU_MUL,
         ALU_MULH,
@@ -46,7 +49,8 @@ package core_pkg;
         ALU_MEM_ADDR_WRITE_B,
         ALU_MEM_ADDR_WRITE_H,
         ALU_MEM_ADDR_WRITE_W,
-        ALU_PC_INCR  // Used in few cases where we store next instr address
+        ALU_PC_INCR,  // Used in few cases where we store next instr address
+        ALU_JALR
     } rf_writeback_t;
 
     typedef enum logic [2:0] {
@@ -94,6 +98,7 @@ package core_pkg;
         // Register ops
         logic rf_wr_en;
         logic [31:0] rf_wr_data;
+        logic rf_wr_data_valid;
         logic [4:0] rs1;
         logic [4:0] rs2;
         logic [4:0] rd;
@@ -109,9 +114,10 @@ package core_pkg;
         logic [31:0] mem_addr2;
         logic [31:0] mem_wr_addr;
         logic [31:0] mem_wr_data;
-        logic mem_wr_en;  // TODO: could be merged?
+        logic mem_wr_en;
         logic [3:0] mem_byte_en;
         // Load
+        logic mem_rd_en;
         logic [1:0] load_offset;
         logic rs1_forward_exec;
         logic rs2_forward_exec;
