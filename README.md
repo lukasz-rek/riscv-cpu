@@ -2,11 +2,13 @@ This is just a riscv32 + extensions CPU I'm making for (sometimes questionable) 
 
 Stuff still to be done before linux ready:
 - [x] Add proper resets from kv260 host
-- [x] Move memory from BRAM into DDR via axi (update: works in tests, needs actual integration)
+- [x] Move memory from BRAM into DDR via axi
   - [x] Will probably require some smol cache to not tank perf
+      - [ ]   Associative cache might give improvements, but current impl good enough for now
 - [ ] Tidy up UART interface
 - [ ] Implement A extension
-- [ ] Implement MMU
+- [ ] ISR handling
+- [ ] Implement MMU (theoretically not needed, but I wanna do it)
 - [x] Finalize pick for linux version (got some ideas) -> Buildroot likely
 
 # Current stats
