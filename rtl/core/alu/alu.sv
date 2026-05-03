@@ -20,15 +20,27 @@ module alu (
     logic signed [32:0] a_ext, b_ext;
     always_comb begin
         unique case (alu_op)
-            ALU_MUL, ALU_MULH: begin a_ext = {a[31], a}; b_ext = {b[31], b}; end
-            ALU_MULHSU:        begin a_ext = {a[31], a}; b_ext = {1'b0,  b}; end
-            ALU_MULHU:         begin a_ext = {1'b0,  a}; b_ext = {1'b0,  b}; end
-            default:           begin a_ext = '0;         b_ext = '0;         end
+            ALU_MUL, ALU_MULH: begin
+                a_ext = {a[31], a};
+                b_ext = {b[31], b};
+            end
+            ALU_MULHSU: begin
+                a_ext = {a[31], a};
+                b_ext = {1'b0, b};
+            end
+            ALU_MULHU: begin
+                a_ext = {1'b0, a};
+                b_ext = {1'b0, b};
+            end
+            default: begin
+                a_ext = '0;
+                b_ext = '0;
+            end
         endcase
         unique case (alu_op)
-                ALU_MULH, ALU_MULHU, ALU_MULHSU: mul_out = mul_4[63:32];
-                default:                          mul_out = mul_4[31:0];
-            endcase
+            ALU_MULH, ALU_MULHU, ALU_MULHSU: mul_out = mul_4[63:32];
+            default:                         mul_out = mul_4[31:0];
+        endcase
     end
 
 
@@ -77,13 +89,16 @@ module alu (
 
     always_ff @(posedge clk) begin
         if (!rst_n) begin
-            mul_1 <= '0; mul_2 <= '0; mul_3 <= '0; mul_4 <= '0;
+            mul_1 <= '0;
+            mul_2 <= '0;
+            mul_3 <= '0;
+            mul_4 <= '0;
             stage_counter_q <= '0;
         end else begin
             if (alu_mul) begin
                 a_q <= a_ext;
                 b_q <= b_ext;
-                mul_1 <=  64'(a_q * b_q);
+                mul_1 <= 64'(a_q * b_q);
                 mul_2 <= mul_1;
                 mul_3 <= mul_2;
                 mul_4 <= mul_3;

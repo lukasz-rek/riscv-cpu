@@ -55,7 +55,7 @@ module axi_master #(
 
     logic [127:0] evicted_buffer       [2];
     /* verilator lint_off UNUSEDSIGNAL */
-    logic [31:0] araddr_q;
+    logic [ 31:0] araddr_q;
     logic [ 31:0] evicted_addr_i;
     logic [ 31:0] evicted_addr_d;
     /* verilator lint_on UNUSEDSIGNAL */
@@ -77,8 +77,8 @@ module axi_master #(
     state_t state_q;
     logic   beat_counter;
     // We're gonna use this to improve timing a bit
-    logic wr_en_q;
-    logic d_out_stall_D;
+    logic   wr_en_q;
+    logic   d_out_stall_D;
 
     assign stall_D = d_out_stall_D || (!wr_en_q && wr_en);
 
@@ -170,7 +170,7 @@ module axi_master #(
                 AXI_OFF: ;
                 AXI_AR_REG: begin
                     araddr_r <= 36'({araddr_q[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
-                    state_q <= AXI_AR;
+                    state_q  <= AXI_AR;
                 end
                 // Reading progression
                 AXI_AR:
@@ -232,7 +232,7 @@ module axi_master #(
                 if (m_axi.bvalid) begin
                     // Now we need to go read the data requested to replace
                     araddr_r <= 36'({araddr_q[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
-                    state_q <= AXI_AR;
+                    state_q  <= AXI_AR;
                 end
                 default: ;
             endcase

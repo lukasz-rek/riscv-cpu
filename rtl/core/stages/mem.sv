@@ -13,6 +13,7 @@ module mem (
     output logic [ 3:0] mem_byte_en,
     output logic        mem_enable,
 
+    input logic stall_D,
     output ctrl_signals_t out_ctrl_signals
 );
 
@@ -30,6 +31,9 @@ module mem (
             out_ctrl_signals <= 0;
         end else begin
             out_ctrl_signals <= in_ctrl_signals;
+            if (mem_enable) begin
+                out_ctrl_signals.rf_wr_data_valid <= (!stall_D) ? 1 : 0;
+            end
         end
     end
 

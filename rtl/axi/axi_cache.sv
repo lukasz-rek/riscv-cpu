@@ -80,7 +80,7 @@ module axi_cache #(
 
     assign first_miss = ((cache_info[requested_line].tag != tag || !cache_info[requested_line].valid )
         && (rd_en || wr_en) && !miss_state_q);
-    assign dirty_evict = first_miss && cache_info[requested_line].dirty;
+    assign dirty_evict = miss && cache_info[requested_line].dirty && cache_info[requested_line].valid;
 
     assign miss = first_miss || miss_state_q;
 
@@ -105,7 +105,7 @@ module axi_cache #(
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             for (int i = 0; i < NUM_SETS; i++) begin
-                cache_info[i].valid <= 0;
+                cache_info[i] <= '0;
             end
             miss_state_q <= 0;
             requested_block_q <= 0;

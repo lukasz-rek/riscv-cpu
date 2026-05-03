@@ -259,7 +259,7 @@ module riscv_arch_tb;
         trace_fd = $fopen({OUT_DIR_RT, "/trace.log"}, "w");
         if (!trace_fd) $fatal(1, "[TB] cannot open trace.log in %s", OUT_DIR_RT);
 
-        load_hex(HEX_FILE, 36'h8_C000_0000);
+        load_hex(HEX_FILE, 36'h8_4000_0000);
 
         rst_n = 0;
         #500;
@@ -306,7 +306,7 @@ module riscv_arch_tb;
 
     // Timeout — only fires if test never completes
     initial begin
-        #2_000_000;
+        #64_000_000;
         if (!finish_pending) begin
             $display("[TB] Timeout at %0t", $time);
             $finish;

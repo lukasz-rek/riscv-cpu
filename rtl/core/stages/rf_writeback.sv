@@ -8,12 +8,12 @@ module rf_writeback (
     output logic [31:0] wr_data,
     input logic [31:0] mem_read,
     /* verilator lint_off UNUSEDSIGNAL */
-    input ctrl_signals_t in_ctrl_signals
+    input ctrl_signals_t in_ctrl_signals,
     /* verilator lint_on UNUSEDSIGNAL */
-    // output ctrl_signals_t current_ctrl_signals
+    output ctrl_signals_t current_ctrl_signals
 );
 
-    assign rf_wr_en = in_ctrl_signals.rf_wr_en;
+    assign rf_wr_en = in_ctrl_signals.rf_wr_en && in_ctrl_signals.rf_wr_data_valid;
     assign wr_addr  = in_ctrl_signals.rd;
 
     always_comb begin
@@ -51,8 +51,11 @@ module rf_writeback (
         end else begin
             wr_data = in_ctrl_signals.rf_wr_data;
         end
-        // current_ctrl_signals = in_ctrl_signals;
-        // current_ctrl_signals.rf_wr_data = wr_data;
+        current_ctrl_signals = in_ctrl_signals;
+        current_ctrl_signals.rf_wr_data = wr_data;
+        if (rf_wr_en) begin
+            // $write("PC: %h, Wrote %h to %d\n", current_ctrl_signals.pc, wr_data, wr_addr);
+        end
     end
 
 
