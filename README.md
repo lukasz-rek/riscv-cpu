@@ -33,6 +33,31 @@ seedcrc          : 0xe9f5
 Correct operation validated. See README.md for run and reporting rules.
 ```
 
+Temp 
+At 80 Mhz
+```
+Starting coremark                                                                                       
+2K performance run parameters for coremark.                                                             
+CoreMark Size    : 666                                                                                  
+Total ticks      : 1071168869                                                                           
+Total time (secs): 13                                                                                   
+Iterations/Sec   : 184                                                                                  
+Iterations       : 2400                                                                                 
+Compiler version : GCC15.2.0                                                                            
+Compiler flags   : -O3                                                                                  
+Memory location  : STACK                                                                                
+seedcrc          : 0xe9f5                                                                               
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0x382f
+Correct operation validated. See README.md for run and reporting rules.
+
+Got 1073835650 cycles and 703281515 instructions
+CPI: ~1.52
+```
+
+
 # Build
 
 Have verilator, verible, gtkwave and make installed

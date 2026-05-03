@@ -88,7 +88,7 @@ module exec (
 
         // Handle stall when we don't have data yet
         // We can't start div or anything during this time
-        if (in_ctrl_signals.alu_op != ALU_OFF && (!rs1_valid || (in_ctrl_signals.rs2_src == REG && !rs2_valid))) begin
+        if (in_ctrl_signals.alu_op != ALU_OFF && (!rs1_valid || !rs2_valid)) begin
             alu_op = ALU_OFF;
             exec_stall = 1;
             temp_signals = '0;
