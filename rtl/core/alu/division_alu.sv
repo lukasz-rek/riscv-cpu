@@ -55,6 +55,7 @@ module division_alu (
     logic running;
     logic signed_op;
     logic overflow;
+    logic int_min_overflow;  // Gives diff result, sadge
 
     // State signals for easier decisions
     logic MIDDLE;
@@ -102,7 +103,8 @@ module division_alu (
                 remainder = (rem_shifted[64] == divisor[64]) ? rem_shifted + divisor_n : rem_shifted + divisor;
             end else if (state_count != 0) begin
                 result_en = 1;
-                if (overflow) result = (alu_op == ALU_REM) ? a : '1;
+                if (overflow && int_min_overflow) result = (alu_op == ALU_REM) ? '0 : 32'h8000_0000;
+                else if (overflow) result = (alu_op == ALU_REM) ? a : '1;
                 else if (alu_op == ALU_DIV) begin
                     // Conversion needed for quotient if sign(r) != sign(z) + some exceptions
                     if ((remainder_q[64] != a[31] || zero_detected) && remainder_q != '0) begin
@@ -139,10 +141,10 @@ module division_alu (
                 result_en = 1;
                 if (overflow) result = (alu_op == ALU_REMU) ? a : '1;
                 else if (alu_op == ALU_DIVU) result = quotient_q;
-                else
-                    result = ($signed(
-                        remainder_q[63:32]
-                    ) >= 0) ? remainder_q[63:32] : remainder_q[63:32] + b;
+                else result = (!remainder_q[64]) ? remainder_q[63:32] : remainder_q[63:32] + b;
+                // result = ($signed(
+                //     remainder_q[63:32]
+                // ) >= 0) ? remainder_q[63:32] : remainder_q[63:32] + b;
 
             end
         end else begin
@@ -152,7 +154,7 @@ module division_alu (
 
 
     always_ff @(posedge clk) begin
-        if (!rst_n) begin
+        if (!rst_n || !running) begin
             state_count <= '0;
             quotient_digit_q <= '1;
             remainder_q <= '0;
@@ -161,6 +163,7 @@ module division_alu (
             divisor_n <= '0;
             overflow <= '0;
             zero_detected <= '0;
+            int_min_overflow <= '0;
         end else if (running) begin
             state_count <= state_count + 1;
             if (state_count == 0) begin
@@ -169,9 +172,10 @@ module division_alu (
                 quotient_q <= '0;
                 zero_detected <= '0;
                 if (signed_op) begin
-                    divisor   <= {b[31], b, 32'b0};
+                    divisor <= {b[31], b, 32'b0};
                     divisor_n <= ({b[31], b, 32'b0} ^ '1) + 1;
-                    overflow  <= (b == '0 || (a == 32'h8000_0000 && b == '1));
+                    overflow <= (b == '0 || (a == 32'h8000_0000 && b == '1));
+                    int_min_overflow <= (a == 32'h8000_0000 && b == '1);
                 end else begin
                     divisor   <= {1'b0, b, 32'b0};
                     divisor_n <= ({1'b0, b, 32'b0} ^ '1) + 1;
