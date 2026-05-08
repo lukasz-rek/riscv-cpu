@@ -16,8 +16,20 @@ limitations under the License.
 
 #include <coremark.h>
 #include <stdarg.h>
+#include <stdint.h>
 
-#define UART_TX   (*(volatile ee_size_t *)0x00010000)
+#define UART_BASE    0x10000000
+#define UART_THR  (*(volatile ee_u32 *)(UART_BASE + 0x00))
+#define UART_LCR  (*(volatile ee_u32 *)(UART_BASE + 0x0C))
+#define UART_DLL  (*(volatile ee_u32 *)(UART_BASE + 0x00))
+#define UART_DLM  (*(volatile ee_u32 *)(UART_BASE + 0x04))
+#define UART_IER  (*(volatile ee_u32 *)(UART_BASE + 0x04))
+#define UART_FCR  (*(volatile ee_u32 *)(UART_BASE + 0x08))
+#define UART_LSR  (*(volatile ee_u32 *)(UART_BASE + 0x14))
+#define LSR_THRE  (1 << 5)
+#define UART_DIVISOR 43  // 80MHz / (16 * 115200)
+
+
 #define ZEROPAD   (1 << 0) /* Pad with zero */
 #define SIGN      (1 << 1) /* Unsigned/signed long */
 #define PLUS      (1 << 2) /* Show plus */
@@ -31,6 +43,15 @@ limitations under the License.
 static char *    digits       = "0123456789abcdefghijklmnopqrstuvwxyz";
 static char *    upper_digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 static ee_size_t strnlen(const char *s, ee_size_t count);
+
+void uart_init(void) {
+    UART_LCR = (1 << 7);
+    UART_DLL = UART_DIVISOR & 0xFF;
+    UART_DLM = (UART_DIVISOR >> 8) & 0xFF;
+    UART_LCR = 0x03;
+    UART_FCR = 0x01;
+    UART_IER = 0x00;
+}
 
 static ee_size_t
 strnlen(const char *s, ee_size_t count)
@@ -663,8 +684,8 @@ ee_vsprintf(char *buf, const char *fmt, va_list args)
 void
 uart_send_char(char c)
 {
-    while (UART_TX & 1);  // wait while FIFO is full
-    UART_TX = c;
+    while (!(UART_LSR & LSR_THRE));
+    UART_THR = c;
 }
 
 int

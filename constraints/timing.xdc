@@ -10,3 +10,7 @@ set_property IOSTANDARD LVCMOS33 [get_ports uart_tx]
 set_property SLEW SLOW [get_ports uart_tx]
 set_property DRIVE 4 [get_ports uart_tx]
 set_false_path -to [get_ports uart_tx]
+
+set_property PACKAGE_PIN E10      [get_ports uart_rx]
+set_property IOSTANDARD  LVCMOS33 [get_ports uart_rx]
+set_false_path -from [get_ports uart_rx]

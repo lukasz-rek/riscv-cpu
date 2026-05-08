@@ -18,6 +18,8 @@ Original Author: Shay Gal-on
 #include "coremark.h"
 #include "core_portme.h"
 
+extern void uart_init(void);
+
 #if VALIDATION_RUN
 volatile ee_s32 seed1_volatile = 0x3415;
 volatile ee_s32 seed2_volatile = 0x3415;
@@ -131,7 +133,7 @@ void
 portable_init(core_portable *p, int *argc, char *argv[])
 {
 
-
+    uart_init();
     (void)argc; // prevent unused warning
     (void)argv; // prevent unused warning
 

@@ -71,18 +71,36 @@ module axi_master #(
         AXI_CAPTURE_EVICTED,
         AXI_AW,
         AXI_W,
-        AXI_B  // Confirmation of write
+        AXI_B,  // Confirmation of write
+        // AXI MMIO transactions
+        MMIO_AR,
+        MMIO_R,
+        MMIO_R_DONE,
+        MMIO_AW,
+        MMIO_W,
+        MMIO_B,
+        MMIO_DONE
+
     } state_t;
 
     state_t state_q;
-    logic   beat_counter;
+    logic beat_counter;
 
     // We're gonna use this to improve timing a bit by counterintuitevely stalling a bit
     // This allows the overall pipeline signals to propagate better
-    logic   wr_en_q;
-    logic   d_out_stall_D;
+    logic wr_en_q;
+    logic d_out_stall_D;
 
-    assign stall_D = d_out_stall_D || (!wr_en_q && wr_en);
+    logic is_mmio;
+
+    logic [31:0] d_cache_out;
+    logic [31:0] mmio_out;
+    logic mmio_valid;
+
+    assign is_mmio   = (addr_d < 32'h8000_0000 && (rd_en_d || wr_en)) ? 1 : 0;
+
+    assign stall_D   = d_out_stall_D || (!wr_en_q && wr_en) || (is_mmio && !mmio_valid);
+    assign rd_data_d = (mmio_valid) ? mmio_out : d_cache_out;
 
     axi_cache #() d_cache (
         .clk  (clk),
@@ -90,14 +108,14 @@ module axi_master #(
 
         .addr(addr_d),
         .wr_data(wr_data),
-        .wr_en(wr_en_q && wr_en),
-        .rd_en(rd_en_d),
+        .wr_en(wr_en_q && wr_en && !is_mmio),
+        .rd_en(rd_en_d && !is_mmio),
         .byte_en(byte_en),
 
         .cache_load(cache_load_d),
         .cache_load_data(cache_load_data),
 
-        .rd_data(rd_data_d),
+        .rd_data(d_cache_out),
         .miss(d_out_stall_D),
         .dirty_evict(dirty_evict_d),
         .cache_evicted_data(cache_evicted_data_d),
@@ -139,6 +157,8 @@ module axi_master #(
             cache_load <= '0;
             wr_en_q <= 0;
             i_stall_in_progress <= 0;
+            mmio_out <= '0;
+            mmio_valid <= 0;
         end else begin
             // If we're missing data then start up axi, do write if dirty
             // Prioritize I cache over D, let D wait longer if both stalled
@@ -162,6 +182,12 @@ module axi_master #(
                 end else begin
                     state_q <= AXI_AR_REG;
                 end
+            end else if (is_mmio && (state_q == AXI_OFF) && rd_en_d) begin
+                araddr_r <= {4'b0, addr_d};
+                state_q  <= MMIO_AR;
+            end else if (is_mmio && (state_q == AXI_OFF) && wr_en) begin
+                awaddr_r <= {4'b0, addr_d};
+                state_q  <= MMIO_AW;
             end
 
             wr_en_q <= wr_en;
@@ -234,6 +260,39 @@ module axi_master #(
                     araddr_r <= 36'({araddr_q[ADDR_WIDTH-1:5], 5'b0}) + START_ADDR;
                     state_q  <= AXI_AR;
                 end
+                // Progressions for MMIO reads/writes
+                MMIO_AR:
+                if (m_axi.arready) begin
+                    state_q <= MMIO_R;
+                end
+                MMIO_R:
+                if (m_axi.rvalid) begin
+                    mmio_out <= m_axi.rdata[addr_d[3:2]*32+:32];
+                    state_q <= MMIO_R_DONE;
+                    mmio_valid <= 1;
+                end
+                MMIO_R_DONE: state_q <= MMIO_DONE;
+                MMIO_DONE: begin
+                    mmio_valid <= 0;
+                    mmio_out <= '0;
+                    state_q <= AXI_OFF;
+                end
+                MMIO_AW:
+                if (m_axi.awready) begin
+                    state_q <= MMIO_W;
+                    wdata_r <= {96'b0, wr_data} << {addr_d[3:2], 5'b0};
+                    wlast_r <= 1;
+                end
+                MMIO_W:
+                if (m_axi.wready) begin
+                    wlast_r <= 0;
+                    state_q <= MMIO_B;
+                end
+                MMIO_B:
+                if (m_axi.bvalid) begin
+                    state_q <= MMIO_DONE;
+                    mmio_valid <= 1;
+                end
                 default: ;
             endcase
         end
@@ -244,31 +303,31 @@ module axi_master #(
 
     // Setup static AXI connections
     // AXI AR Channel
-    assign m_axi.arlen = 8'd1;
-    assign m_axi.arsize  = 3'b100;  // 16 bytes
+    assign m_axi.arlen   = (state_q == MMIO_AR) ? 8'd0   : 8'd1;
+    assign m_axi.arsize  = (state_q == MMIO_AR) ? 3'b010 : 3'b100;
     assign m_axi.arburst = 2'b01;  // INCR (don't-care for len=0)
     assign m_axi.arlock  = 1'b0;
     assign m_axi.arcache = 4'b0011;  // normal non-cacheable bufferable
     assign m_axi.arprot  = 3'b000;
-    assign m_axi.arvalid = (state_q == AXI_AR);
+    assign m_axi.arvalid = (state_q == AXI_AR || state_q == MMIO_AR);
     assign m_axi.arid    = '0;
     assign m_axi.arqos   = '0;
     assign m_axi.aruser  = 1'b0;
 
     // ── AXI R channel ──
-    assign m_axi.rready  = (state_q == AXI_R);
+    assign m_axi.rready  = (state_q == AXI_R || state_q == MMIO_R);
 
     // assign stall_I   = 1'b0;
     // assign rd_data_i = '0;
 
     // ── AXI AW ──
-    assign m_axi.awlen   = 8'd1;
-    assign m_axi.awsize  = 3'b100;  // 16 bytes
+    assign m_axi.awlen   = (state_q == MMIO_AW) ? 8'd0   : 8'd1;
+    assign m_axi.awsize  = (state_q == MMIO_AW) ? 3'b010 : 3'b100;
     assign m_axi.awburst = 2'b01;
     assign m_axi.awlock  = 1'b0;
     assign m_axi.awcache = 4'b0011;
     assign m_axi.awprot  = 3'b000;
-    assign m_axi.awvalid = (state_q == AXI_AW);
+    assign m_axi.awvalid = (state_q == AXI_AW || state_q == MMIO_AW);
     assign m_axi.awid    = '0;
     assign m_axi.awqos   = '0;
     assign m_axi.awuser  = 1'b0;
@@ -276,8 +335,8 @@ module axi_master #(
     // ── AXI W ──
     assign m_axi.wdata  = wdata_r;
     assign m_axi.wlast  = wlast_r;
-    assign m_axi.wstrb  = 16'hFFFF;
-    assign m_axi.wvalid = (state_q == AXI_W);
+    assign m_axi.wstrb   = (state_q == MMIO_W)  ? (16'h000F << {addr_d[3:2], 2'b0}) : 16'hFFFF;
+    assign m_axi.wvalid = (state_q == AXI_W || state_q == MMIO_W);
 
     // ── AXI B ──
     assign m_axi.bready = 1'b1;
