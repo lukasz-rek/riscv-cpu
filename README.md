@@ -5,7 +5,7 @@ Stuff still to be done before linux ready:
 - [x] Move memory from BRAM into DDR via axi
   - [x] Will probably require some smol cache to not tank perf
       - [ ]   Associative cache might give improvements, but current impl good enough for now
-- [ ] Tidy up UART interface
+- [x] Tidy up UART interface (also anything MMIO is good for now)
 - [ ] Implement A extension
 - [ ] ISR handling
 - [ ] Implement MMU (theoretically not needed, but I wanna do it)
