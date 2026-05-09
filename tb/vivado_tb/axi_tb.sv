@@ -349,41 +349,41 @@ module axi_tb;
     // end
 
 
-    // logic [35:0] last_awaddr;
+    logic [35:0] last_awaddr;
 
-    // always @(posedge clk) begin
-    //     if (axi_awvalid && axi_awready)
-    //         last_awaddr <= axi_awaddr;
-    // end
+    always @(posedge clk) begin
+        if (axi_awvalid && axi_awready)
+            last_awaddr <= axi_awaddr;
+    end
 
-    // always @(posedge clk) begin
-    //     if (axi_wvalid && axi_wready && last_awaddr == 36'h0_1000_0000) begin
-    //         automatic logic [7:0] ch;
-    //         casez (axi_wstrb)
-    //             16'b????_????_????_???1: ch = axi_wdata[7:0];
-    //             16'b????_????_????_??10: ch = axi_wdata[15:8];
-    //             16'b????_????_????_?100: ch = axi_wdata[23:16];
-    //             16'b????_????_????_1000: ch = axi_wdata[31:24];
-    //             default:                 ch = axi_wdata[7:0];
-    //         endcase
-    //         if (ch >= 8'h20 && ch <= 8'h7E || ch == 8'h0A || ch == 8'h0D)
-    //             $write("%c", ch);
-    //     end
-    // end
+    always @(posedge clk) begin
+        if (axi_wvalid && axi_wready && last_awaddr == 36'h0_1000_0000) begin
+            automatic logic [7:0] ch;
+            casez (axi_wstrb)
+                16'b????_????_????_???1: ch = axi_wdata[7:0];
+                16'b????_????_????_??10: ch = axi_wdata[15:8];
+                16'b????_????_????_?100: ch = axi_wdata[23:16];
+                16'b????_????_????_1000: ch = axi_wdata[31:24];
+                default:                 ch = axi_wdata[7:0];
+            endcase
+            if (ch >= 8'h20 && ch <= 8'h7E || ch == 8'h0A || ch == 8'h0D)
+                $write("%c", ch);
+        end
+    end
 
     // MMIO only (addr < 0x8000_0000)
-    always @(posedge clk) begin
-        if (axi_arvalid && axi_arready && axi_araddr < 36'h8_0000_0000)
-            $display("[MMIO] AR: addr=0x%08h @ %0t", axi_araddr, $time);
-        if (axi_rvalid && axi_rready && /* latch addr */ 1) // see note
-            ; // harder to filter R — see note below
-        if (axi_awvalid && axi_awready && axi_awaddr < 36'h8_0000_0000)
-            $display("[MMIO] AW: addr=0x%08h len=%0d @ %0t", axi_awaddr, axi_awlen, $time);
-        if (axi_wvalid && axi_wready && axi_awaddr < 36'h8_0000_0000)
-            $display("[MMIO]  W: data=0x%032h strb=%04h @ %0t", axi_wdata, axi_wstrb, $time);
-        if (axi_bvalid && axi_bready)
-            ; // B has no addr, skip or always print
-    end
+    // always @(posedge clk) begin
+    //     if (axi_arvalid && axi_arready && axi_araddr < 36'h8_0000_0000)
+    //         $display("[MMIO] AR: addr=0x%08h @ %0t", axi_araddr, $time);
+    //     if (axi_rvalid && axi_rready && /* latch addr */ 1) // see note
+    //         ; // harder to filter R — see note below
+    //     if (axi_awvalid && axi_awready && axi_awaddr < 36'h8_0000_0000)
+    //         $display("[MMIO] AW: addr=0x%08h len=%0d @ %0t", axi_awaddr, axi_awlen, $time);
+    //     if (axi_wvalid && axi_wready && axi_awaddr < 36'h8_0000_0000)
+    //         $display("[MMIO]  W: data=0x%032h strb=%04h @ %0t", axi_wdata, axi_wstrb, $time);
+    //     if (axi_bvalid && axi_bready)
+    //         ; // B has no addr, skip or always print
+    // end
 
 
 

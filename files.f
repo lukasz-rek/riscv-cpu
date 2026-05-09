@@ -1,5 +1,6 @@
 // Packages first
 rtl/core_pkg.sv
+rtl/core/csr_pkg.sv
 rtl/axi/axi_if.sv
 
 // Actual rtl files then
@@ -10,6 +11,7 @@ rtl/core/register_file.sv
 rtl/axi/axi_master.sv
 rtl/axi/axi_cache.sv
 
+rtl/core/csr_regfile.sv
 
 rtl/core/core.sv
 rtl/core/stages/fetch.sv

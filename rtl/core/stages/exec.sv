@@ -19,6 +19,13 @@ module exec (
     input logic rs1_valid,
     input logic rs2_valid,
 
+    // CSR access
+    output logic csr_rd_en,
+    output logic csr_wr_en,
+    output logic [11:0] csr_addr,
+    input logic [31:0] csr_rd_data,
+    output logic [31:0] csr_wr_data,
+
     input logic freeze,
     input logic stall_D,
 
@@ -68,8 +75,14 @@ module exec (
     assign rs1_addr = in_ctrl_signals.rs1;
     assign rs2_addr = in_ctrl_signals.rs2;
 
+    assign csr_addr = in_ctrl_signals.csr_addr;
+    assign csr_rd_en = in_ctrl_signals.csr_rd_en;
+    assign csr_wr_en = in_ctrl_signals.csr_wr_en;
+
     assign alu_div_active = (alu_op == ALU_DIV || alu_op == ALU_DIVU || alu_op == ALU_REM || alu_op == ALU_REMU);
 
+
+    logic [31:0] csr_input;
 
     always_comb begin
         // Assign correct operands
@@ -78,6 +91,7 @@ module exec (
         flush = 0;
         flush_pc = '0;
         exec_stall = '0;
+        csr_input = '0;
 
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;
@@ -131,6 +145,26 @@ module exec (
                     // Special case, we need ot jump to address calculated
                     flush = 1;
                     flush_pc = alu_result & ~32'b1;
+                end
+                ALU_CSR: begin
+                    csr_input = (temp_signals.csr_imm) ? in_ctrl_signals.imm : rs1_data;
+                    case (temp_signals.csr_op)
+                        CSR_RW: begin
+                            csr_wr_data = csr_input;
+                            temp_signals.rf_wr_data = csr_rd_data;
+                        end
+                        CSR_SET: begin
+                            // Store original value
+                            temp_signals.rf_wr_data = csr_rd_data;
+                            csr_wr_data = csr_rd_data | csr_input;
+                        end
+                        CSR_CLEAR: begin
+                            temp_signals.rf_wr_data = csr_rd_data;
+                            // csr_wr_data = csr_rd_data
+                        end
+                        default: ;
+                    endcase
+                    temp_signals.rf_wr_data_valid = 1;
                 end
                 default: ;
             endcase

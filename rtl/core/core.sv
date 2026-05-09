@@ -80,6 +80,29 @@ module core (
     );
 
 
+    // CSR file instance
+    logic [11:0] csr_addr;
+    logic csr_rd_en;
+    logic csr_wr_en;
+    logic [31:0] csr_wr_data;
+    logic [31:0] csr_rd_data;
+    logic minstret_incr;
+
+    csr_regfile csr_regfile (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .csr_addr (csr_addr),
+        .csr_rd_en(csr_rd_en),
+        .csr_wr_en(csr_wr_en),
+
+        .csr_wr_data(csr_wr_data),
+        .csr_rd_data(csr_rd_data),
+
+        .minstret_incr(minstret_incr)
+    );
+
+
 
     ctrl_signals_t id_ex_ctrl;
     // ctrl_signals_t ex_id_frwrd_ctrl;
@@ -111,7 +134,8 @@ module core (
 
         .ctrl_signals(id_ex_ctrl),
         .valid(valid),
-        .freeze(freeze)
+        .freeze(freeze),
+        .minstret_incr(minstret_incr)
     );
 
 
@@ -126,13 +150,21 @@ module core (
         .out_ctrl_signals(ex_mem_ctrl),
 
         // .forward_result(ex_id_frwrd_ctrl),
-        .rs1_addr(rs1),
-        .rs2_addr(rs2),
-        .rs1_data(rs1_data),
-        .rs2_data(rs2_data),
+        .rs1_addr (rs1),
+        .rs2_addr (rs2),
+        .rs1_data (rs1_data),
+        .rs2_data (rs2_data),
         .rs1_valid(rs1_valid),
         .rs2_valid(rs2_valid),
-        .freeze(freeze),
+
+        .csr_addr (csr_addr),
+        .csr_rd_en(csr_rd_en),
+        .csr_wr_en(csr_wr_en),
+
+        .csr_wr_data(csr_wr_data),
+        .csr_rd_data(csr_rd_data),
+
+        .freeze (freeze),
         .stall_D(stall_D),
 
         .flush(ex_id_flush),
