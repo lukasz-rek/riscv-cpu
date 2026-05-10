@@ -1,5 +1,6 @@
 /* verilator lint_off IMPORTSTAR */
 import core_pkg::*;
+import csr_pkg::*;
 /* verilator lint_on IMPORTSTAR */
 
 module core (
@@ -88,6 +89,17 @@ module core (
     logic [31:0] csr_rd_data;
     logic minstret_incr;
 
+    // Trap handling
+    logic trap_en;
+    isr_cause_t trap_cause;
+    logic [31:0] trap_pc;
+    logic [31:0] trap_val;
+    logic mret_en;
+
+    logic trap_taken;
+    logic [31:0] trap_target;
+    logic trap_pending;
+
     csr_regfile csr_regfile (
         .clk  (clk),
         .rst_n(rst_n),
@@ -99,7 +111,17 @@ module core (
         .csr_wr_data(csr_wr_data),
         .csr_rd_data(csr_rd_data),
 
-        .minstret_incr(minstret_incr)
+        .minstret_incr(minstret_incr),
+
+        .trap_en(trap_en),
+        .trap_cause(trap_cause),
+        .trap_pc(trap_pc),
+        .trap_val(trap_val),
+        .mret_en(mret_en),
+
+        .trap_taken  (trap_taken),
+        .trap_target (trap_target),
+        .trap_pending(trap_pending)
     );
 
 
@@ -135,7 +157,11 @@ module core (
         .ctrl_signals(id_ex_ctrl),
         .valid(valid),
         .freeze(freeze),
-        .minstret_incr(minstret_incr)
+        .minstret_incr(minstret_incr),
+
+        .trap_taken  (trap_taken),
+        .trap_target (trap_target),
+        .trap_pending(trap_pending)
     );
 
 
@@ -163,6 +189,13 @@ module core (
 
         .csr_wr_data(csr_wr_data),
         .csr_rd_data(csr_rd_data),
+
+        .trap_en(trap_en),
+        .trap_cause(trap_cause),
+        .trap_pc(trap_pc),
+        .trap_val(trap_val),
+        .mret_en(mret_en),
+
 
         .freeze (freeze),
         .stall_D(stall_D),

@@ -1,5 +1,6 @@
 /* verilator lint_off IMPORTSTAR */
 import core_pkg::*;
+import csr_pkg::*;
 /* verilator lint_on IMPORTSTAR */
 
 module exec (
@@ -25,6 +26,13 @@ module exec (
     output logic [11:0] csr_addr,
     input logic [31:0] csr_rd_data,
     output logic [31:0] csr_wr_data,
+
+    // Trap signals
+    output logic trap_en,
+    output isr_cause_t trap_cause,
+    output logic [31:0] trap_pc,
+    output logic [31:0] trap_val,
+    output logic mret_en,
 
     input logic freeze,
     input logic stall_D,
@@ -92,6 +100,8 @@ module exec (
         flush_pc = '0;
         exec_stall = '0;
         csr_input = '0;
+        mret_en = 0;
+        trap_en = 0;
 
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;
@@ -102,10 +112,23 @@ module exec (
 
         // Handle stall when we don't have data yet
         // We can't start div or anything during this time
-        if (in_ctrl_signals.alu_op != ALU_OFF && (!rs1_valid || !rs2_valid)) begin
+        if ((in_ctrl_signals.alu_op != ALU_OFF || in_ctrl_signals.rf_writeback == ALU_CSR) && (!rs1_valid || !rs2_valid)) begin
             alu_op = ALU_OFF;
             exec_stall = 1;
             temp_signals = '0;
+        end else if (in_ctrl_signals.trap_en || in_ctrl_signals.mret_en) begin
+            alu_op = ALU_OFF;
+            temp_signals = '0;  // squash
+            exec_stall = 1;
+            if (in_ctrl_signals.trap_en) begin
+                trap_en = 1;
+                trap_pc = in_ctrl_signals.pc;
+                trap_val = '0;
+                trap_cause = in_ctrl_signals.trap_cause;
+            end else begin
+                mret_en = 1;
+            end
+
         end else begin
 
 
@@ -160,7 +183,7 @@ module exec (
                         end
                         CSR_CLEAR: begin
                             temp_signals.rf_wr_data = csr_rd_data;
-                            // csr_wr_data = csr_rd_data
+                            csr_wr_data = csr_rd_data & ~csr_input;
                         end
                         default: ;
                     endcase

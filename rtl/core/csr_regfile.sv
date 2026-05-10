@@ -14,7 +14,18 @@ module csr_regfile (
     output logic [31:0] csr_rd_data,
 
     // Rest of information
-    input logic minstret_incr
+    input logic minstret_incr,
+
+    // Trap handling
+    input logic trap_en,
+    input isr_cause_t trap_cause,
+    input logic [31:0] trap_pc,
+    input logic [31:0] trap_val,
+    input logic mret_en,
+
+    output logic trap_taken,
+    output logic [31:0] trap_target,
+    output logic trap_pending
 );
 
     // Decode addr
@@ -23,6 +34,13 @@ module csr_regfile (
 
     assign current_csr_read_only = (csr_addr[11:10] == 2'b11);
     assign current_csr_priv_bits = csr_privilege_t'(csr_addr[9:8]);
+
+    assign trap_pending = 0;
+
+    assign trap_taken = trap_en | mret_en;
+    assign trap_target = mret_en ? mepc_q.pc :
+                         (mtvec_q.mode == 2'b01) ? // If vector mode, BASE + 4 * CAUSE
+        {mtvec_q.base, 2'b00} + (32'(mcause_q.code) << 2) : {mtvec_q.base, 2'b00};
 
     // State
     csr_privilege_t privilege;
@@ -41,9 +59,36 @@ module csr_regfile (
     };  // misa
     logic [63:0] mcycle;
     logic [63:0] minstret;
+    // verilog_format: off
+    /* verilator lint_off UNUSEDSIGNAL */
+    mstatus_t mstatus; mstatus_t mstatus_q; mstatus_t mstatus_temp;
+    mstatush_t mstatush; mstatush_t mstatush_q;
+    mtvec_t mtvec; mtvec_t mtvec_q; mtvec_t mtvec_temp;
+    mie_t mie; mie_t mie_q;
+    mip_t mip; mip_t mip_q;
+    mepc_t mepc; mepc_t mepc_q;
+    mcause_t mcause; mcause_t mcause_q;
+    mscratch_t mscratch; mscratch_t mscratch_q;
+    mtval_t mtval; mtval_t mtval_q;
+    /* verilator lint_on UNUSEDSIGNAL */
+    // verilog_format: on
 
     // Reads + sanitize
     always_comb begin
+        csr_rd_data = '0;
+
+        // verilog_format: off
+        mstatus = mstatus_q; mstatus_temp = '0;
+        mstatush = mstatus_q;
+        mtvec = mtvec_q; mtvec_temp = '0;
+        mie = mie_q;
+        mip = mip_q;
+        mepc = mepc_q;
+        mcause = mcause_q;
+        mscratch = mscratch_q;
+        mtval = mtval_q;
+        // verilog_format: on
+
         if (!csr_rd_en && !csr_wr_en) begin
             ;  // Do nothing
         end else if (current_csr_priv_bits > privilege) begin
@@ -55,7 +100,36 @@ module csr_regfile (
             case (csr_addr)
                 // Machine Information Registers
                 // Machine Trap Setup
+                12'h300: begin
+                    csr_rd_data  = mstatus_q;
+                    mstatus_temp = mstatus_t'(csr_wr_data);
+
+                    mstatus.mie  = mstatus_temp.mie;
+                end
                 12'h301: csr_rd_data = MISA_VALUE;
+                12'h304: csr_rd_data = mie_q;
+                12'h305: begin
+                    csr_rd_data = mtvec_q;
+                    mtvec_temp  = mtvec_t'(csr_wr_data);
+
+                    if (mtvec_temp.mode <= 2'd1) begin
+                        mtvec.mode = mtvec_temp.mode;
+                    end
+                    mtvec.base = mtvec_temp.base;
+
+                end
+                12'h310: begin
+                    csr_rd_data = mstatush;
+                end
+                // Machine Trap Handling
+                12'h340: csr_rd_data = mscratch_q;
+                12'h341: begin
+                    csr_rd_data = mepc_q;
+
+                    mepc = csr_wr_data;
+                end
+                12'h342: csr_rd_data = mcause_q;
+                12'h344: csr_rd_data = mip_q;
                 // Machine Counters/Timers
                 12'hC00, 12'hC01: csr_rd_data = mcycle[31:0];
                 12'hC80, 12'hC81: csr_rd_data = mcycle[63:32];
@@ -74,11 +148,34 @@ module csr_regfile (
             mcycle <= '0;
             minstret <= '0;
             privilege <= M_MODE;
+            mstatus_q <= '0;
         end else begin
             mcycle   <= mcycle + 1;
             minstret <= (minstret_incr) ? minstret + 1 : minstret;
-            if (csr_wr_en) begin
+            if (trap_en) begin
+                mepc_q.pc <= {trap_pc[31:2], 2'b00};
+                mcause_q <= mcause_t'(trap_cause);
+                mtval_q <= mtval_t'(trap_val);
 
+                mstatus_q.mpie <= mstatus_q.mie;
+                mstatus_q.mie <= 1'b0;
+                mstatus_q.mpp <= privilege;
+                privilege <= M_MODE;
+            end else if (mret_en) begin
+                mstatus_q.mie <= mstatus_q.mpie;
+                mstatus_q.mpie <= 1'b1;
+                privilege <= csr_privilege_t'(mstatus_q.mpp);
+                mstatus_q.mpp <= M_MODE;
+            end else if (csr_wr_en) begin
+                mstatus_q <= mstatus;
+                mstatush_q <= mstatush;
+                mtvec_q <= mtvec;
+                mie_q <= mie;
+                mip_q <= mip;
+                mepc_q <= mepc;
+                mcause_q <= mcause;
+                mscratch_q <= mscratch;
+                mtval_q <= mtval;
             end
         end
     end

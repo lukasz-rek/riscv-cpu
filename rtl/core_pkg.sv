@@ -1,6 +1,8 @@
 
-package core_pkg;
 
+
+package core_pkg;
+    import csr_pkg::isr_cause_t;
 
     // ALU operation codes - minimal set for RV32I
     typedef enum logic [4:0] {
@@ -128,6 +130,12 @@ package core_pkg;
         csr_type_t csr_type;
         csr_op_t csr_op;
         logic csr_imm;
+
+        // Traps
+        isr_cause_t trap_cause;
+        logic [31:0] trap_val;
+        logic trap_en;
+        logic mret_en;
 
         // Branching
         logic branch_expects_zero;

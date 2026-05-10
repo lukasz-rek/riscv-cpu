@@ -54,6 +54,29 @@ void print_hex(uint32_t val) {
     }
 }
 
+__attribute__((interrupt("machine")))
+void trap_handler(void) {
+    uint32_t mcause;
+    __asm__ volatile ("csrr %0, mcause" : "=r"(mcause));
+
+    uart_puts("TRAP! mcause=0x");
+    print_hex(mcause);
+    uart_puts("\r\n");
+    uint32_t mepc;
+    __asm__ volatile ("csrr %0, mepc" : "=r"(mepc));
+    mepc += 4;
+    __asm__ volatile ("csrw mepc, %0" : : "r"(mepc));
+}
+
+void trap_init(void) {
+    // Direct mode: all traps go to the same handler (mode bits = 00)
+    // mtvec must be 4-byte aligned (your handler will be)
+    __asm__ volatile (
+        "la t0, trap_handler\n"
+        "csrw mtvec, t0\n"
+    );
+}
+
 int main(void) {
     uart_init();
     // uart_puts("RISC-V UART ready\r\n");
@@ -65,21 +88,26 @@ int main(void) {
     //     uart_puts("\r\n");
     // }
 
-    uint32_t cycle1, cycle2;
+    trap_init();
 
-    __asm__ volatile ("rdinstret %0" : "=r"(cycle1));
+    uart_puts("Before ebreak\r\n");
+    __asm__ volatile ("ebreak");
+    uart_puts("After ebreak (returned via mret)\r\n");
+    // uint32_t cycle1, cycle2;
 
-    // __asm__ volatile ("nop");
-    // __asm__ volatile ("nop");
+    // __asm__ volatile ("rdinstret %0" : "=r"(cycle1));
 
-    __asm__ volatile ("rdinstret %0" : "=r"(cycle2));
+    // // __asm__ volatile ("nop");
+    // // __asm__ volatile ("nop");
 
-    print_hex(cycle1);
-    uart_putc('\n');
-    print_hex(cycle2);
-    uart_putc('\n');
-    print_hex(cycle2 - cycle1);
-    uart_putc('\n');
+    // __asm__ volatile ("rdinstret %0" : "=r"(cycle2));
+
+    // print_hex(cycle1);
+    // uart_putc('\n');
+    // print_hex(cycle2);
+    // uart_putc('\n');
+    // print_hex(cycle2 - cycle1);
+    // uart_putc('\n');
 
     return 0;
 }

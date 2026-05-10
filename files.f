@@ -1,6 +1,6 @@
 // Packages first
-rtl/core_pkg.sv
 rtl/core/csr_pkg.sv
+rtl/core_pkg.sv
 rtl/axi/axi_if.sv
 
 // Actual rtl files then
