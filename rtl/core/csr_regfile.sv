@@ -19,13 +19,19 @@ module csr_regfile (
     // Trap handling
     input logic trap_en,
     input isr_cause_t trap_cause,
+    /* verilator lint_off UNUSEDSIGNAL */
     input logic [31:0] trap_pc,
+    /* verilator lint_on UNUSEDSIGNAL */
     input logic [31:0] trap_val,
     input logic mret_en,
 
     output logic trap_taken,
     output logic [31:0] trap_target,
-    output logic trap_pending
+    output logic trap_pending,
+
+    // ISR signals
+    input logic mtime_isr
+
 );
 
     // Decode addr
@@ -35,7 +41,6 @@ module csr_regfile (
     assign current_csr_read_only = (csr_addr[11:10] == 2'b11);
     assign current_csr_priv_bits = csr_privilege_t'(csr_addr[9:8]);
 
-    assign trap_pending = 0;
 
     assign trap_taken = trap_en | mret_en;
     assign trap_target = mret_en ? mepc_q.pc :
@@ -73,7 +78,30 @@ module csr_regfile (
     /* verilator lint_on UNUSEDSIGNAL */
     // verilog_format: on
 
-    // Reads + sanitize
+    // True iff any isr is waiting
+    logic isr_pending;
+    // Depending on what combination of isr+trap triggered decodes right one
+    isr_cause_t prioritised_isr_cause;
+
+    assign isr_pending = mstatus_q.mie & ((mie_q & mip) != '0);
+
+    // Handle isr/trap cause
+    always_comb begin
+        prioritised_isr_cause = HW_ERROR;
+        trap_pending = isr_pending;
+        if (isr_pending) begin
+            // trap_pending = 1;
+            if (mip[7])
+                prioritised_isr_cause = M_MACHINE_TIMER;
+            else
+                prioritised_isr_cause = trap_cause;
+        end else if (trap_taken) begin
+            // trap_pending = 1;
+            prioritised_isr_cause = trap_cause;
+        end
+    end
+
+    // Reads + sanitize writes
     always_comb begin
         csr_rd_data = '0;
 
@@ -82,7 +110,8 @@ module csr_regfile (
         mstatush = mstatus_q;
         mtvec = mtvec_q; mtvec_temp = '0;
         mie = mie_q;
-        mip = mip_q;
+        mip = '0;
+        mip[7] = mtime_isr;
         mepc = mepc_q;
         mcause = mcause_q;
         mscratch = mscratch_q;
@@ -107,7 +136,10 @@ module csr_regfile (
                     mstatus.mie  = mstatus_temp.mie;
                 end
                 12'h301: csr_rd_data = MISA_VALUE;
-                12'h304: csr_rd_data = mie_q;
+                12'h304: begin
+                    csr_rd_data = mie_q;
+                    mie = mie_t'(csr_wr_data);
+                end
                 12'h305: begin
                     csr_rd_data = mtvec_q;
                     mtvec_temp  = mtvec_t'(csr_wr_data);
@@ -140,6 +172,8 @@ module csr_regfile (
 
         end
 
+
+
     end
 
     always_ff @(posedge clk) begin
@@ -149,12 +183,13 @@ module csr_regfile (
             minstret <= '0;
             privilege <= M_MODE;
             mstatus_q <= '0;
+            mie_q <= '0;
         end else begin
             mcycle   <= mcycle + 1;
             minstret <= (minstret_incr) ? minstret + 1 : minstret;
             if (trap_en) begin
                 mepc_q.pc <= {trap_pc[31:2], 2'b00};
-                mcause_q <= mcause_t'(trap_cause);
+                mcause_q <= mcause_t'(prioritised_isr_cause);
                 mtval_q <= mtval_t'(trap_val);
 
                 mstatus_q.mpie <= mstatus_q.mie;

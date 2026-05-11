@@ -18,7 +18,10 @@ module core (
     output logic [31:0] mem_addr2,
     output logic        mem_wr_en,
     output logic [31:0] mem_wr_data,
-    output logic [ 3:0] mem_byte_en
+    output logic [ 3:0] mem_byte_en,
+
+    // ISRs
+    input logic mtime_isr
 );
 
 
@@ -91,8 +94,10 @@ module core (
 
     // Trap handling
     logic trap_en;
+    logic isr_en;
     isr_cause_t trap_cause;
     logic [31:0] trap_pc;
+    logic [31:0] isr_pc;
     logic [31:0] trap_val;
     logic mret_en;
 
@@ -113,15 +118,17 @@ module core (
 
         .minstret_incr(minstret_incr),
 
-        .trap_en(trap_en),
+        .trap_en(trap_en | isr_en),
         .trap_cause(trap_cause),
-        .trap_pc(trap_pc),
+        .trap_pc((trap_en) ? trap_pc : isr_pc),
         .trap_val(trap_val),
         .mret_en(mret_en),
 
         .trap_taken  (trap_taken),
         .trap_target (trap_target),
-        .trap_pending(trap_pending)
+        .trap_pending(trap_pending),
+
+        .mtime_isr(mtime_isr)
     );
 
 
@@ -132,6 +139,7 @@ module core (
     ctrl_signals_t rd_if_forward_ctrl;
     logic [31:0] ex_id_flush_pc;
     logic exec_stall;
+    logic trap_stall;
     logic freeze;
 
     decode decode_stage (
@@ -159,9 +167,12 @@ module core (
         .freeze(freeze),
         .minstret_incr(minstret_incr),
 
+        .trap_stall(trap_stall),
         .trap_taken  (trap_taken),
         .trap_target (trap_target),
-        .trap_pending(trap_pending)
+        .trap_pending(trap_pending),
+        .isr_pc(isr_pc),
+        .isr_en(isr_en)
     );
 
 
@@ -200,6 +211,7 @@ module core (
         .freeze (freeze),
         .stall_D(stall_D),
 
+        .trap_stall(trap_stall),
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
         .exec_stall(exec_stall)

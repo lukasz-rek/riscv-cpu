@@ -36,9 +36,13 @@ module decode (
     // output logic [31:0] trap_val,
     // output logic mret_en,
 
+    input logic trap_stall,
     input logic trap_taken,
     input logic [31:0] trap_target,
-    input logic trap_pending
+    input logic trap_pending,
+
+    output logic isr_en,
+    output logic [31:0] isr_pc
 );
 
     logic [31:0] instruction;
@@ -68,8 +72,8 @@ module decode (
 
     logic flush_latch_q;
     logic [31:0] flush_pc_q;
-    logic trap_service;
 
+    logic trap_service;
     // First actually decode the signals
     always_comb begin
         next_pc_en = 0;
@@ -79,16 +83,20 @@ module decode (
         freeze = '0;
         minstret_incr = 0;
         trap_service = 0;
+        isr_en = 0;
+        isr_pc = '0;
+
+        if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
+                isr_en = 1;
+                isr_pc = instr_pc;
+            end
+
         if (!valid) begin
 
         end else if (flush_latch_q) begin
             // If we're on valid instruction (no in progress I miss)
             next_pc_en = 1;
             next_pc = flush_pc_q;
-        end else if (trap_taken) begin
-            next_pc_en = 1;
-            next_pc = trap_target;
-            trap_service = 1;
         end else if (exec_stall) begin
             next_pc_en = 1;
             next_pc = instr_pc;
@@ -96,7 +104,14 @@ module decode (
             next_pc_en = 1;
             next_pc = instr_pc;
             freeze = 1;
-
+        end else if (trap_taken || trap_pending) begin
+            next_pc_en = 1;
+            next_pc = trap_target;
+            trap_service = 1;
+            // if (trap_pending) begin
+            //     isr_en = 1;
+            //     isr_pc = instr_pc;
+            // end
         end else begin
 
             temp_signals.pc = instr_pc;
@@ -339,11 +354,10 @@ module decode (
                 flush_latch_q <= 0;
             end
 
-            if (trap_taken && trap_service) begin
-                ctrl_signals <= '0;
-            end else if (exec_stall || stall_D) begin
+
+            if (exec_stall || stall_D || (trap_stall && !trap_service)) begin
                 ctrl_signals <= ctrl_signals;
-            end else if (!valid || flush || flush_latch_q) begin
+            end else if (!valid || flush || flush_latch_q || trap_pending || trap_taken) begin
                 ctrl_signals <= '0;
             end else begin
                 // We get a new instruction

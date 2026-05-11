@@ -9,6 +9,7 @@ rtl/core/alu/alu.sv
 rtl/core/alu/division_alu.sv
 rtl/core/register_file.sv
 rtl/axi/axi_master.sv
+rtl/local_mmio.sv
 rtl/axi/axi_cache.sv
 
 rtl/core/csr_regfile.sv

@@ -10,13 +10,19 @@
 #define UART_LCR  (*(volatile uint32_t *)(UART_BASE + 0x0C))
 #define UART_LSR  (*(volatile uint32_t *)(UART_BASE + 0x14))
 
+#define TIMECMP_LO (*(volatile uint32_t *)0x02004000)
+#define TIMECMP_HI (*(volatile uint32_t *)0x02004004)
+#define MTIME_LO   (*(volatile uint32_t *)0x0200BFF8)
+#define MTIME_HI   (*(volatile uint32_t *)0x0200BFFC)
+
 #define LCR_DLAB  (1 << 7)
 #define LCR_8N1   0x03
 #define FCR_EN    0x01
 #define LSR_THRE  (1 << 5)
-#define LSR_DR    (1 << 0)  // Data Ready
+#define LSR_DR    (1 << 0)
 
 #define UART_DIVISOR 43
+#define TIMER_INTERVAL 10000
 
 void uart_init(void) {
     UART_LCR = LCR_DLAB;
@@ -41,12 +47,6 @@ char uart_getc(void) {
     return (char)(UART_RBR & 0xFF);
 }
 
-void uart_puts_char(const char *prefix, char c, const char *suffix) {
-    uart_puts(prefix);
-    uart_putc(c);
-    uart_puts(suffix);
-}
-
 void print_hex(uint32_t val) {
     for (int i = 28; i >= 0; i -= 4) {
         uint8_t nibble = (val >> i) & 0xF;
@@ -54,23 +54,49 @@ void print_hex(uint32_t val) {
     }
 }
 
+static inline uint64_t read_mtime(void) {
+    uint32_t lo, hi, hi2;
+    // Re-read on carry: if hi changed between reads, lo wrapped
+    do {
+        hi  = MTIME_HI;
+        lo  = MTIME_LO;
+        hi2 = MTIME_HI;
+    } while (hi != hi2);
+    return ((uint64_t)hi << 32) | lo;
+}
+
+static inline void write_timecmp(uint64_t next) {
+    // Set HI to max first to suppress comparator while writing LO
+    TIMECMP_HI = 0xFFFFFFFF;
+    TIMECMP_LO = (uint32_t)(next & 0xFFFFFFFF);
+    TIMECMP_HI = (uint32_t)(next >> 32);
+}
+
 __attribute__((interrupt("machine")))
 void trap_handler(void) {
     uint32_t mcause;
     __asm__ volatile ("csrr %0, mcause" : "=r"(mcause));
 
-    uart_puts("TRAP! mcause=0x");
-    print_hex(mcause);
-    uart_puts("\r\n");
-    uint32_t mepc;
-    __asm__ volatile ("csrr %0, mepc" : "=r"(mepc));
-    mepc += 4;
-    __asm__ volatile ("csrw mepc, %0" : : "r"(mepc));
+    if (mcause & 0x80000000) {
+        // Interrupt
+        if ((mcause & 0x7FFFFFFF) == 7) {
+            // Machine timer interrupt — rearm and return to interrupted instruction
+            write_timecmp(read_mtime() + TIMER_INTERVAL);
+            uart_puts("TIMER\r\n");
+        }
+    } else {
+        // Synchronous exception — skip faulting instruction
+        uart_puts("TRAP! mcause=0x");
+        print_hex(mcause);
+        uart_puts("\r\n");
+        uint32_t mepc;
+        __asm__ volatile ("csrr %0, mepc" : "=r"(mepc));
+        mepc += 4;
+        __asm__ volatile ("csrw mepc, %0" :: "r"(mepc));
+    }
 }
 
 void trap_init(void) {
-    // Direct mode: all traps go to the same handler (mode bits = 00)
-    // mtvec must be 4-byte aligned (your handler will be)
     __asm__ volatile (
         "la t0, trap_handler\n"
         "csrw mtvec, t0\n"
@@ -79,35 +105,23 @@ void trap_init(void) {
 
 int main(void) {
     uart_init();
-    // uart_puts("RISC-V UART ready\r\n");
-
-    // while (1) {
-    //     char c = uart_getc();
-    //     uart_puts("Char received: ");
-    //     uart_putc(c);
-    //     uart_puts("\r\n");
-    // }
-
     trap_init();
 
     uart_puts("Before ebreak\r\n");
     __asm__ volatile ("ebreak");
     uart_puts("After ebreak (returned via mret)\r\n");
-    // uint32_t cycle1, cycle2;
 
-    // __asm__ volatile ("rdinstret %0" : "=r"(cycle1));
+    // Arm timer before enabling interrupts
+    write_timecmp(read_mtime() + TIMER_INTERVAL);
 
-    // // __asm__ volatile ("nop");
-    // // __asm__ volatile ("nop");
+    uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
+    uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
+    uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
 
-    // __asm__ volatile ("rdinstret %0" : "=r"(cycle2));
+    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
 
-    // print_hex(cycle1);
-    // uart_putc('\n');
-    // print_hex(cycle2);
-    // uart_putc('\n');
-    // print_hex(cycle2 - cycle1);
-    // uart_putc('\n');
-
-    return 0;
+    while (1) {
+        uart_puts("Not trapping\n");
+    }
 }

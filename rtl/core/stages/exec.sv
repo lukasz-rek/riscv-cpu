@@ -39,6 +39,7 @@ module exec (
 
     output logic flush,
     output logic exec_stall,
+    output logic trap_stall,
     output logic [31:0] flush_pc
 );
 
@@ -99,6 +100,7 @@ module exec (
         flush = 0;
         flush_pc = '0;
         exec_stall = '0;
+        trap_stall = 0;
         csr_input = '0;
         mret_en = 0;
         trap_en = 0;
@@ -119,7 +121,7 @@ module exec (
         end else if (in_ctrl_signals.trap_en || in_ctrl_signals.mret_en) begin
             alu_op = ALU_OFF;
             temp_signals = '0;  // squash
-            exec_stall = 1;
+            trap_stall = 1;
             if (in_ctrl_signals.trap_en) begin
                 trap_en = 1;
                 trap_pc = in_ctrl_signals.pc;
