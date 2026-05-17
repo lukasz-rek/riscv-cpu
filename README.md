@@ -6,8 +6,9 @@ Stuff still to be done before linux ready:
   - [x] Will probably require some smol cache to not tank perf
       - [ ]   Associative cache might give improvements, but current impl good enough for now
 - [x] Tidy up UART interface (also anything MMIO is good for now)
-- [ ] Implement A extension
-- [ ] ISR handling
+- [ ] Implement A extension (should be easy with only 1 cpu)
+- [ ] Rest of privilege spec I need, S/U modes etc.
+- [x] ISR handling + selected traps
 - [ ] Implement MMU (theoretically not needed, but I wanna do it)
 - [x] Finalize pick for linux version (got some ideas) -> Buildroot likely
 
@@ -15,7 +16,8 @@ Stuff still to be done before linux ready:
 
 See [Benchmarks](docs/benchmarks.md) for whole progress, but this is latest results:
 
-80 MHz, riscv32im_zicntr, pipelined with access to 1GB DDR over AXI, 2 32 KB I and D caches. 
+80 MHz, riscv32im, pipelined with access to 1GB DDR over AXI, 2 32 KB I and D caches.
+Supports a timer ISR, selected traps and 16550 UART.
 
 It's also passing the riscv ISA [tests](https://github.com/riscv/riscv-arch-test) for I and M extensions.
 ```
