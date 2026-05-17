@@ -1,5 +1,6 @@
 /* verilator lint_off IMPORTSTAR */
 import core_pkg::*;
+import csr_pkg::*;
 /* verilator lint_on IMPORTSTAR */
 
 module core (
@@ -17,7 +18,10 @@ module core (
     output logic [31:0] mem_addr2,
     output logic        mem_wr_en,
     output logic [31:0] mem_wr_data,
-    output logic [ 3:0] mem_byte_en
+    output logic [ 3:0] mem_byte_en,
+
+    // ISRs
+    input logic mtime_isr
 );
 
 
@@ -80,6 +84,54 @@ module core (
     );
 
 
+    // CSR file instance
+    logic [11:0] csr_addr;
+    logic csr_rd_en;
+    logic csr_wr_en;
+    logic [31:0] csr_wr_data;
+    logic [31:0] csr_rd_data;
+    logic minstret_incr;
+
+    // Trap handling
+    logic trap_en;
+    logic isr_en;
+    isr_cause_t trap_cause;
+    logic [31:0] trap_pc;
+    logic [31:0] isr_pc;
+    logic [31:0] trap_val;
+    logic mret_en;
+
+    logic trap_taken;
+    logic [31:0] trap_target;
+    logic trap_pending;
+
+    csr_regfile csr_regfile (
+        .clk  (clk),
+        .rst_n(rst_n),
+
+        .csr_addr (csr_addr),
+        .csr_rd_en(csr_rd_en),
+        .csr_wr_en(csr_wr_en),
+
+        .csr_wr_data(csr_wr_data),
+        .csr_rd_data(csr_rd_data),
+
+        .minstret_incr(minstret_incr),
+
+        .trap_en(trap_en | isr_en),
+        .trap_cause(trap_cause),
+        .trap_pc((trap_en) ? trap_pc : isr_pc),
+        .trap_val(trap_val),
+        .mret_en(mret_en),
+
+        .trap_taken  (trap_taken),
+        .trap_target (trap_target),
+        .trap_pending(trap_pending),
+
+        .mtime_isr(mtime_isr)
+    );
+
+
 
     ctrl_signals_t id_ex_ctrl;
     // ctrl_signals_t ex_id_frwrd_ctrl;
@@ -87,6 +139,7 @@ module core (
     ctrl_signals_t rd_if_forward_ctrl;
     logic [31:0] ex_id_flush_pc;
     logic exec_stall;
+    logic trap_stall;
     logic freeze;
 
     decode decode_stage (
@@ -111,7 +164,15 @@ module core (
 
         .ctrl_signals(id_ex_ctrl),
         .valid(valid),
-        .freeze(freeze)
+        .freeze(freeze),
+        .minstret_incr(minstret_incr),
+
+        .trap_stall(trap_stall),
+        .trap_taken(trap_taken),
+        .trap_target(trap_target),
+        .trap_pending(trap_pending),
+        .isr_pc(isr_pc),
+        .isr_en(isr_en)
     );
 
 
@@ -126,15 +187,31 @@ module core (
         .out_ctrl_signals(ex_mem_ctrl),
 
         // .forward_result(ex_id_frwrd_ctrl),
-        .rs1_addr(rs1),
-        .rs2_addr(rs2),
-        .rs1_data(rs1_data),
-        .rs2_data(rs2_data),
+        .rs1_addr (rs1),
+        .rs2_addr (rs2),
+        .rs1_data (rs1_data),
+        .rs2_data (rs2_data),
         .rs1_valid(rs1_valid),
         .rs2_valid(rs2_valid),
-        .freeze(freeze),
+
+        .csr_addr (csr_addr),
+        .csr_rd_en(csr_rd_en),
+        .csr_wr_en(csr_wr_en),
+
+        .csr_wr_data(csr_wr_data),
+        .csr_rd_data(csr_rd_data),
+
+        .trap_en(trap_en),
+        .trap_cause(trap_cause),
+        .trap_pc(trap_pc),
+        .trap_val(trap_val),
+        .mret_en(mret_en),
+
+
+        .freeze (freeze),
         .stall_D(stall_D),
 
+        .trap_stall(trap_stall),
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
         .exec_stall(exec_stall)

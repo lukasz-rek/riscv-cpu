@@ -1,5 +1,6 @@
 /* verilator lint_off IMPORTSTAR */
 import core_pkg::*;
+
 /* verilator lint_on IMPORTSTAR */
 
 module decode (
@@ -13,6 +14,8 @@ module decode (
     output logic [31:0] next_pc,
     output logic next_pc_en,
 
+    output logic minstret_incr,
+
     // Flushing
     /* verilator lint_off UNUSEDSIGNAL */
     input logic flush,
@@ -24,7 +27,22 @@ module decode (
     input logic stall_D,
     /* verilator lint_on UNUSEDSIGNAL */
     output ctrl_signals_t ctrl_signals,
-    output logic freeze
+    output logic freeze,
+
+    // Trap handling
+    // output logic trap_en,
+    // output isr_cause_t trap_cause,
+    // output logic [31:0] trap_pc,
+    // output logic [31:0] trap_val,
+    // output logic mret_en,
+
+    input logic trap_stall,
+    input logic trap_taken,
+    input logic [31:0] trap_target,
+    input logic trap_pending,
+
+    output logic isr_en,
+    output logic [31:0] isr_pc
 );
 
     logic [31:0] instruction;
@@ -36,10 +54,8 @@ module decode (
     logic [2:0] funct3;
     logic [6:0] funct7;
     logic [31:0] imm;
+    logic [11:0] funct12;
 
-    logic [63:0] cycle_count;
-    logic [63:0] instr_count;
-    logic [11:0] csr;
     // Used for comibnational stuff and clocked once later
     ctrl_signals_t temp_signals;
 
@@ -52,10 +68,19 @@ module decode (
     assign rd = instruction[11:7];
     assign rs1 = instruction[19:15];
     assign rs2 = instruction[24:20];
-    assign csr = instruction[31:20];
+    assign funct12 = instruction[31:20];
 
     logic flush_latch_q;
     logic [31:0] flush_pc_q;
+
+    logic trap_service;
+
+    // If handling falls through, make it illegal
+    function automatic void illegal_instr(ref ctrl_signals_t s);
+        s.trap_en    = 1'b1;
+        s.trap_cause = ILLEGAL_INSTR;
+        s.rf_wr_en   = 1'b0;
+    endfunction
 
     // First actually decode the signals
     always_comb begin
@@ -64,13 +89,22 @@ module decode (
         next_pc = '0;
         temp_signals = 0;
         freeze = '0;
+        minstret_incr = 0;
+        trap_service = 0;
+        isr_en = 0;
+        isr_pc = '0;
+
+        if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
+            isr_en = 1;
+            isr_pc = instr_pc;
+        end
+
         if (!valid) begin
 
         end else if (flush_latch_q) begin
             // If we're on valid instruction (no in progress I miss)
             next_pc_en = 1;
             next_pc = flush_pc_q;
-
         end else if (exec_stall) begin
             next_pc_en = 1;
             next_pc = instr_pc;
@@ -78,6 +112,14 @@ module decode (
             next_pc_en = 1;
             next_pc = instr_pc;
             freeze = 1;
+        end else if (trap_taken || trap_pending) begin
+            next_pc_en = 1;
+            next_pc = trap_target;
+            trap_service = 1;
+            // if (trap_pending) begin
+            //     isr_en = 1;
+            //     isr_pc = instr_pc;
+            // end
         end else begin
 
             temp_signals.pc = instr_pc;
@@ -87,10 +129,10 @@ module decode (
             temp_signals.rs2 = rs2;
             temp_signals.opcode = opcode;
 
+
             temp_signals.rd = rd;
-            if (valid) begin
-                // $write("PC: %h, INSTR: %h\n", instr_pc, instr_data);
-            end
+            // $write("PC: %h, INSTR: %h\n", instr_pc, instr_data);
+            minstret_incr = 1;
 
             case (opcode)
                 OP_B: begin
@@ -107,7 +149,7 @@ module decode (
                         BNE, BEQ: temp_signals.alu_op = ALU_SUB;
                         BLT, BGE: temp_signals.alu_op = ALU_SLT;
                         BLTU, BGEU: temp_signals.alu_op = ALU_SLTU;
-                        default: ;
+                        default: illegal_instr(temp_signals);
                     endcase
                     // We always assume branch gets taken, unless we have a latched flush
                     next_pc = instr_pc + imm;
@@ -131,7 +173,12 @@ module decode (
                     temp_signals.alu_op = ALU_ADD;
                     temp_signals.rf_writeback = ALU_PC_INCR;
                     next_pc = instr_pc + imm;
-                    next_pc_en = 1;
+                    if (next_pc[1:0] != 2'b00) begin
+                        temp_signals.rf_wr_en = 0;
+                        temp_signals.trap_en = 1;
+                        temp_signals.trap_cause = INSTR_ADDR_MALIGN;
+                        temp_signals.trap_val = next_pc;
+                    end else next_pc_en = 1;
                 end
                 OP_S: begin
                     temp_signals.mem_wr_en = 1;
@@ -150,7 +197,7 @@ module decode (
                             temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_W;
 
                         end
-                        default: ;
+                        default: illegal_instr(temp_signals);
                     endcase
                 end
                 OP_R: begin
@@ -158,15 +205,14 @@ module decode (
                     if (funct7 == 7'b0000001) begin
                         // Handle M extension
                         case (funct3)
-                            3'b000:  temp_signals.alu_op = ALU_MUL;
-                            3'b001:  temp_signals.alu_op = ALU_MULH;
-                            3'b010:  temp_signals.alu_op = ALU_MULHSU;
-                            3'b011:  temp_signals.alu_op = ALU_MULHU;
-                            3'b100:  temp_signals.alu_op = ALU_DIV;
-                            3'b101:  temp_signals.alu_op = ALU_DIVU;
-                            3'b110:  temp_signals.alu_op = ALU_REM;
-                            3'b111:  temp_signals.alu_op = ALU_REMU;
-                            default;
+                            3'b000: temp_signals.alu_op = ALU_MUL;
+                            3'b001: temp_signals.alu_op = ALU_MULH;
+                            3'b010: temp_signals.alu_op = ALU_MULHSU;
+                            3'b011: temp_signals.alu_op = ALU_MULHU;
+                            3'b100: temp_signals.alu_op = ALU_DIV;
+                            3'b101: temp_signals.alu_op = ALU_DIVU;
+                            3'b110: temp_signals.alu_op = ALU_REM;
+                            3'b111: temp_signals.alu_op = ALU_REMU;
                         endcase
                     end else begin
                         case (funct3)
@@ -180,7 +226,6 @@ module decode (
                             temp_signals.alu_op = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
                             3'b110: temp_signals.alu_op = ALU_OR;
                             3'b111: temp_signals.alu_op = ALU_AND;
-                            default: ;
                         endcase
                     end
                     temp_signals.rf_wr_en = 1;
@@ -203,7 +248,7 @@ module decode (
                                 3'b010:  temp_signals.load_mask = LW;  // LW
                                 3'b100:  temp_signals.load_mask = LBU;  // LBU
                                 3'b101:  temp_signals.load_mask = LHU;  // LHU
-                                default: ;
+                                default: illegal_instr(temp_signals);
                             endcase
                         end
                         OP_JALR: begin
@@ -230,10 +275,10 @@ module decode (
                                     temp_signals.alu_op   = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
                                     temp_signals.rs2_src = SHAMT;
                                 end
-                                default: ;
+                                default: illegal_instr(temp_signals);
                             endcase
                         end
-                        default: ;
+                        default: illegal_instr(temp_signals);
                     endcase
                 end
                 OP_LUI, OP_AUI: begin
@@ -243,23 +288,58 @@ module decode (
                     temp_signals.rf_wr_data_valid = 1;
                 end
                 OP_SYSTEM: begin
-                    temp_signals.rf_wr_en = 1;
-                    temp_signals.rf_wr_data_valid = 1;
-                    if (funct3 == 3'b010) begin
-                        case (csr)
-                            // cycle, time
-                            12'hC00, 12'hC01: temp_signals.rf_wr_data = cycle_count[31:0];
-                            // cycleh, timeh
-                            12'hC80, 12'hC81: temp_signals.rf_wr_data = cycle_count[63:32];
-                            // instret
-                            12'hC02: temp_signals.rf_wr_data = instr_count[31:0];
-                            // instreth
-                            12'hC82: temp_signals.rf_wr_data = instr_count[63:32];
+                    if (funct3 != '0) begin
+                        temp_signals.rf_wr_en = 1;
+                        temp_signals.rf_writeback = ALU_CSR;
+                        temp_signals.csr_addr = instruction[31:20];
+                        temp_signals.csr_wr_en = 1;
+                        temp_signals.csr_rd_en = 1;
+
+                        // Always perform cast, if wrong value, catch in following switch/case
+                        temp_signals.csr_type = csr_type_t'(funct3);
+                        imm = {27'b0, rs1};
+                        case (funct3)
+                            CSRRW, CSRRWI: begin
+                                temp_signals.csr_op = CSR_RW;
+                            end
+                            CSRRS, CSRRSI: begin
+                                temp_signals.csr_op = CSR_SET;
+                            end
+                            CSRRC, CSRRCI: begin
+                                temp_signals.csr_op = CSR_CLEAR;
+                            end
+                            default: illegal_instr(temp_signals);
+                        endcase
+                        // Decide imm
+                        case (funct3)
+                            CSRRW, CSRRS, CSRRC: temp_signals.csr_imm = 0;
+                            CSRRWI, CSRRSI, CSRRCI: temp_signals.csr_imm = 1;
                             default: ;
                         endcase
+                        if (temp_signals.csr_op == CSR_RW && rd == '0) begin
+                            temp_signals.csr_rd_en = 0;
+                        end else if (((temp_signals.csr_op == CSR_SET) || (temp_signals.csr_op == CSR_CLEAR)) &&
+                        (rs1 == '0) ) begin
+                            temp_signals.csr_wr_en = 0;
+                        end
+                    end else begin
+                        case (funct12)
+                            12'd0: begin
+                                temp_signals.trap_en = 1;
+                                temp_signals.trap_cause = M_CALL;
+                            end
+                            12'd1: begin
+                                temp_signals.trap_en = 1;
+                                temp_signals.trap_cause = BREAKPOINT;
+                            end
+                            12'b001100000010: temp_signals.mret_en = 1;
+                            default: illegal_instr(temp_signals);
+                        endcase
                     end
+
+
                 end
-                default: ;
+                default: illegal_instr(temp_signals);
             endcase
             temp_signals.imm = imm;
         end
@@ -272,8 +352,6 @@ module decode (
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             ctrl_signals <= '0;
-            cycle_count <= '0;
-            instr_count <= '0;
             flush_latch_q <= 0;
             flush_pc_q <= '0;
         end else begin
@@ -287,17 +365,17 @@ module decode (
                 flush_latch_q <= 0;
             end
 
-            if (exec_stall || stall_D) begin
+
+            if (exec_stall || stall_D || (trap_stall && !trap_service)) begin
                 ctrl_signals <= ctrl_signals;
-            end else if (!valid || flush || flush_latch_q) begin
+            end else if (!valid || flush || flush_latch_q || trap_pending || trap_taken) begin
                 ctrl_signals <= '0;
             end else begin
                 // We get a new instruction
-                instr_count  <= instr_count + 1;
+
                 ctrl_signals <= temp_signals;
             end
 
-            cycle_count <= cycle_count + 1;
         end
     end
 

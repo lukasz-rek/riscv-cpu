@@ -7,7 +7,6 @@ module riscv_arch_tb;
 
     logic clk   = 0;
     logic rst_n = 0;
-    logic uart_tx;
 
     always #8.62 clk = ~clk; // ~58 MHz
 
@@ -74,7 +73,6 @@ module riscv_arch_tb;
     top_wrapper dut (
         .clk             (clk),
         .rst_n           (rst_n),
-        .uart_tx         (uart_tx),
         // AR
         .m_axi_araddr    (axi_araddr),
         .m_axi_arlen     (axi_arlen),
@@ -259,6 +257,9 @@ module riscv_arch_tb;
         trace_fd = $fopen({OUT_DIR_RT, "/trace.log"}, "w");
         if (!trace_fd) $fatal(1, "[TB] cannot open trace.log in %s", OUT_DIR_RT);
 
+        // Spoof uart ready to write
+        slv_agent.mem_model.backdoor_memory_write_4byte(32'h10000014, 32'h00000060, 4'hF);
+
         load_hex(HEX_FILE, 36'h8_4000_0000);
 
         rst_n = 0;
@@ -306,7 +307,7 @@ module riscv_arch_tb;
 
     // Timeout — only fires if test never completes
     initial begin
-        #64_000_000;
+        #4_000_000;
         if (!finish_pending) begin
             $display("[TB] Timeout at %0t", $time);
             $finish;
@@ -330,6 +331,28 @@ module riscv_arch_tb;
         end
         $display("[TB] final: %0d instructions retired, last_pc=0x%08h",
                  inst_cnt, last_unique_pc);
+    end
+
+    logic [35:0] last_awaddr;
+
+    always @(posedge clk) begin
+        if (axi_awvalid && axi_awready)
+            last_awaddr <= axi_awaddr;
+    end
+
+    always @(posedge clk) begin
+        if (axi_wvalid && axi_wready && last_awaddr == 36'h0_1000_0000) begin
+            automatic logic [7:0] ch;
+            casez (axi_wstrb)
+                16'b????_????_????_???1: ch = axi_wdata[7:0];
+                16'b????_????_????_??10: ch = axi_wdata[15:8];
+                16'b????_????_????_?100: ch = axi_wdata[23:16];
+                16'b????_????_????_1000: ch = axi_wdata[31:24];
+                default:                 ch = axi_wdata[7:0];
+            endcase
+            if (ch >= 8'h20 && ch <= 8'h7E || ch == 8'h0A || ch == 8'h0D)
+                $write("%c", ch);
+        end
     end
 
     // ── Monitor AXI (uncomment to debug) ──

@@ -1,4 +1,5 @@
 // Packages first
+rtl/core/csr_pkg.sv
 rtl/core_pkg.sv
 rtl/axi/axi_if.sv
 
@@ -8,8 +9,10 @@ rtl/core/alu/alu.sv
 rtl/core/alu/division_alu.sv
 rtl/core/register_file.sv
 rtl/axi/axi_master.sv
+rtl/local_mmio.sv
 rtl/axi/axi_cache.sv
 
+rtl/core/csr_regfile.sv
 
 rtl/core/core.sv
 rtl/core/stages/fetch.sv

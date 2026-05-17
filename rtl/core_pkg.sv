@@ -1,6 +1,8 @@
 
-package core_pkg;
 
+
+package core_pkg;
+    import csr_pkg::isr_cause_t;
 
     // ALU operation codes - minimal set for RV32I
     typedef enum logic [4:0] {
@@ -42,7 +44,7 @@ package core_pkg;
         SHAMT  // preserve
     } rs2_source_t;
 
-    typedef enum logic [2:0] {
+    typedef enum logic [3:0] {
         OFF,
         ALU_REG,
         ALU_MEM_ADDR_READ,
@@ -50,7 +52,8 @@ package core_pkg;
         ALU_MEM_ADDR_WRITE_H,
         ALU_MEM_ADDR_WRITE_W,
         ALU_PC_INCR,  // Used in few cases where we store next instr address
-        ALU_JALR
+        ALU_JALR,
+        ALU_CSR
     } rf_writeback_t;
 
     typedef enum logic [2:0] {
@@ -94,6 +97,21 @@ package core_pkg;
         BGEU = 3'b111
     } branch_cond_t;
 
+    typedef enum logic [2:0] {
+        CSRRW  = 3'b001,
+        CSRRS  = 3'b010,
+        CSRRC  = 3'b011,
+        CSRRWI = 3'b101,
+        CSRRSI = 3'b110,
+        CSRRCI = 3'b111
+    } csr_type_t;
+
+    typedef enum logic [1:0] {
+        CSR_RW,
+        CSR_SET,
+        CSR_CLEAR
+    } csr_op_t;
+
     typedef struct packed {
         // Register ops
         logic rf_wr_en;
@@ -104,6 +122,20 @@ package core_pkg;
         logic [4:0] rd;
         logic [31:0] imm;
         rs2_source_t rs2_src;
+
+        // CSR
+        logic csr_wr_en;
+        logic csr_rd_en;
+        logic [11:0] csr_addr;
+        csr_type_t csr_type;
+        csr_op_t csr_op;
+        logic csr_imm;
+
+        // Traps
+        isr_cause_t trap_cause;
+        logic [31:0] trap_val;
+        logic trap_en;
+        logic mret_en;
 
         // Branching
         logic branch_expects_zero;
