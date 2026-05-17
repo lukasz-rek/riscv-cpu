@@ -74,6 +74,14 @@ module decode (
     logic [31:0] flush_pc_q;
 
     logic trap_service;
+
+    // If handling falls through, make it illegal
+    function automatic void illegal_instr(ref ctrl_signals_t s);
+        s.trap_en    = 1'b1;
+        s.trap_cause = ILLEGAL_INSTR;
+        s.rf_wr_en   = 1'b0;
+    endfunction
+
     // First actually decode the signals
     always_comb begin
         next_pc_en = 0;
@@ -87,9 +95,9 @@ module decode (
         isr_pc = '0;
 
         if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
-                isr_en = 1;
-                isr_pc = instr_pc;
-            end
+            isr_en = 1;
+            isr_pc = instr_pc;
+        end
 
         if (!valid) begin
 
@@ -141,7 +149,7 @@ module decode (
                         BNE, BEQ: temp_signals.alu_op = ALU_SUB;
                         BLT, BGE: temp_signals.alu_op = ALU_SLT;
                         BLTU, BGEU: temp_signals.alu_op = ALU_SLTU;
-                        default: ;
+                        default: illegal_instr(temp_signals);
                     endcase
                     // We always assume branch gets taken, unless we have a latched flush
                     next_pc = instr_pc + imm;
@@ -165,7 +173,12 @@ module decode (
                     temp_signals.alu_op = ALU_ADD;
                     temp_signals.rf_writeback = ALU_PC_INCR;
                     next_pc = instr_pc + imm;
-                    next_pc_en = 1;
+                    if (next_pc[1:0] != 2'b00) begin
+                        temp_signals.rf_wr_en = 0;
+                        temp_signals.trap_en = 1;
+                        temp_signals.trap_cause = INSTR_ADDR_MALIGN;
+                        temp_signals.trap_val = next_pc;
+                    end else next_pc_en = 1;
                 end
                 OP_S: begin
                     temp_signals.mem_wr_en = 1;
@@ -184,7 +197,7 @@ module decode (
                             temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_W;
 
                         end
-                        default: ;
+                        default: illegal_instr(temp_signals);
                     endcase
                 end
                 OP_R: begin
@@ -192,15 +205,14 @@ module decode (
                     if (funct7 == 7'b0000001) begin
                         // Handle M extension
                         case (funct3)
-                            3'b000:  temp_signals.alu_op = ALU_MUL;
-                            3'b001:  temp_signals.alu_op = ALU_MULH;
-                            3'b010:  temp_signals.alu_op = ALU_MULHSU;
-                            3'b011:  temp_signals.alu_op = ALU_MULHU;
-                            3'b100:  temp_signals.alu_op = ALU_DIV;
-                            3'b101:  temp_signals.alu_op = ALU_DIVU;
-                            3'b110:  temp_signals.alu_op = ALU_REM;
-                            3'b111:  temp_signals.alu_op = ALU_REMU;
-                            default;
+                            3'b000: temp_signals.alu_op = ALU_MUL;
+                            3'b001: temp_signals.alu_op = ALU_MULH;
+                            3'b010: temp_signals.alu_op = ALU_MULHSU;
+                            3'b011: temp_signals.alu_op = ALU_MULHU;
+                            3'b100: temp_signals.alu_op = ALU_DIV;
+                            3'b101: temp_signals.alu_op = ALU_DIVU;
+                            3'b110: temp_signals.alu_op = ALU_REM;
+                            3'b111: temp_signals.alu_op = ALU_REMU;
                         endcase
                     end else begin
                         case (funct3)
@@ -214,7 +226,6 @@ module decode (
                             temp_signals.alu_op = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
                             3'b110: temp_signals.alu_op = ALU_OR;
                             3'b111: temp_signals.alu_op = ALU_AND;
-                            default: ;
                         endcase
                     end
                     temp_signals.rf_wr_en = 1;
@@ -237,7 +248,7 @@ module decode (
                                 3'b010:  temp_signals.load_mask = LW;  // LW
                                 3'b100:  temp_signals.load_mask = LBU;  // LBU
                                 3'b101:  temp_signals.load_mask = LHU;  // LHU
-                                default: ;
+                                default: illegal_instr(temp_signals);
                             endcase
                         end
                         OP_JALR: begin
@@ -264,10 +275,10 @@ module decode (
                                     temp_signals.alu_op   = (funct7 == 7'b0100000) ? ALU_SRA : ALU_SRL;
                                     temp_signals.rs2_src = SHAMT;
                                 end
-                                default: ;
+                                default: illegal_instr(temp_signals);
                             endcase
                         end
-                        default: ;
+                        default: illegal_instr(temp_signals);
                     endcase
                 end
                 OP_LUI, OP_AUI: begin
@@ -297,7 +308,7 @@ module decode (
                             CSRRC, CSRRCI: begin
                                 temp_signals.csr_op = CSR_CLEAR;
                             end
-                            default: ;
+                            default: illegal_instr(temp_signals);
                         endcase
                         // Decide imm
                         case (funct3)
@@ -322,13 +333,13 @@ module decode (
                                 temp_signals.trap_cause = BREAKPOINT;
                             end
                             12'b001100000010: temp_signals.mret_en = 1;
-                            default: ;
+                            default: illegal_instr(temp_signals);
                         endcase
                     end
 
 
                 end
-                default: ;
+                default: illegal_instr(temp_signals);
             endcase
             temp_signals.imm = imm;
         end

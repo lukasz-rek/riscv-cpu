@@ -52,8 +52,8 @@ module top #(
     logic mmio_pass_wr_en;
     logic [31:0] mmio_pass_rd_data_d;
 
-    local_mmio mmio(
-        .clk(clk),
+    local_mmio mmio (
+        .clk  (clk),
         .rst_n(rst_n),
 
         .addr(addr_d),
@@ -66,7 +66,7 @@ module top #(
         .wr_en_d(mmio_pass_wr_en),
 
         .rd_data_d(rd_data_d),
-        .rd_data(mmio_pass_rd_data_d),
+        .rd_data  (mmio_pass_rd_data_d),
 
         .mtime_isr(mtime_isr)
     );

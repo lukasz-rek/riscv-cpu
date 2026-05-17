@@ -261,11 +261,12 @@ module axi_tb;
         slv_agent = new("slv_agent", vip_inst.axi_test_i.axi_vip_0.inst.IF);
         slv_agent.start_slave();
 
+        // Spoof uart ready to write
         slv_agent.mem_model.backdoor_memory_write_4byte(32'h10000014, 32'h00000060, 4'hF);
 
         load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
-        // load_hex("/home/luki/Projekty/rv32-tests/hex/I/I-beq-00.hex", 36'h8_C000_0000);
+        // load_hex("/home/luki/Projekty/cpu/logs/arch/I-add-00/I-add-00.hex", 36'h8_4000_0000);
 
         // Reset
         rst_n = 0;

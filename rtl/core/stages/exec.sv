@@ -125,7 +125,12 @@ module exec (
             if (in_ctrl_signals.trap_en) begin
                 trap_en = 1;
                 trap_pc = in_ctrl_signals.pc;
-                trap_val = '0;
+                if (in_ctrl_signals.trap_cause == BREAKPOINT) trap_val = in_ctrl_signals.pc;
+                else if (in_ctrl_signals.trap_cause == ILLEGAL_INSTR)
+                    trap_val = in_ctrl_signals.instr;
+                else if (in_ctrl_signals.trap_cause == INSTR_ADDR_MALIGN)
+                    trap_val = in_ctrl_signals.trap_val;
+                else trap_val = '0;
                 trap_cause = in_ctrl_signals.trap_cause;
             end else begin
                 mret_en = 1;
@@ -150,15 +155,52 @@ module exec (
                         temp_signals.mem_byte_en = 4'b0001 << alu_result[1:0];
                         temp_signals.mem_wr_data = {4{rs2_data[7:0]}};
                     end else if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_H) begin
-                        temp_signals.mem_byte_en = 4'b0011 << {alu_result[1], 1'b0};
-                        temp_signals.mem_wr_data = {2{rs2_data[15:0]}};
+                        if (alu_result[0]) begin
+                            trap_en = 1;
+                            trap_stall = 1;
+                            trap_pc = in_ctrl_signals.pc;
+                            trap_val = alu_result;
+                            trap_cause = STORE_ADDR_MALIGN;
+                        end else begin
+                            temp_signals.mem_byte_en = 4'b0011 << {alu_result[1], 1'b0};
+                            temp_signals.mem_wr_data = {2{rs2_data[15:0]}};
+                        end
                     end else begin
-                        temp_signals.mem_wr_data = rs2_data;
-                        temp_signals.mem_byte_en = 4'b1111;
+                        if (alu_result[1:0] != 2'b00) begin
+                            trap_en = 1;
+                            trap_stall = 1;
+                            trap_pc = in_ctrl_signals.pc;
+                            trap_val = alu_result;
+                            trap_cause = STORE_ADDR_MALIGN;
+                        end else begin
+                            temp_signals.mem_wr_data = rs2_data;
+                            temp_signals.mem_byte_en = 4'b1111;
+                        end
                     end
                 end
                 ALU_MEM_ADDR_READ: begin
                     temp_signals.mem_addr2 = alu_result;
+                    case (in_ctrl_signals.load_mask)
+                        LW: begin
+                            if (alu_result[1:0] != 2'b00) begin
+                                trap_en = 1;
+                                trap_stall = 1;
+                                trap_pc = in_ctrl_signals.pc;
+                                trap_val = alu_result;
+                                trap_cause = LOAD_ADDR_MALIGN;
+                            end
+                        end
+                        LH, LHU: begin
+                            if (alu_result[0]) begin
+                                trap_en = 1;
+                                trap_stall = 1;
+                                trap_pc = in_ctrl_signals.pc;
+                                trap_val = alu_result;
+                                trap_cause = LOAD_ADDR_MALIGN;
+                            end
+                        end
+                        default: ;  // LB, LBU — byte access, always aligned
+                    endcase
                 end
                 ALU_PC_INCR: begin
                     alu_op_a = in_ctrl_signals.pc;
@@ -168,8 +210,17 @@ module exec (
                 end
                 ALU_JALR: begin
                     // Special case, we need ot jump to address calculated
-                    flush = 1;
-                    flush_pc = alu_result & ~32'b1;
+                    // but check trap triggered
+                    if (alu_result[1]) begin
+                        trap_en = 1;
+                        trap_stall = 1;
+                        trap_pc = in_ctrl_signals.pc;
+                        trap_val = alu_result & ~32'b1;
+                        trap_cause = INSTR_ADDR_MALIGN;
+                    end else begin
+                        flush = 1;
+                        flush_pc = alu_result & ~32'b1;
+                    end
                 end
                 ALU_CSR: begin
                     csr_input = (temp_signals.csr_imm) ? in_ctrl_signals.imm : rs1_data;
@@ -224,7 +275,7 @@ module exec (
         end else begin
             if (stall_D) begin
                 out_ctrl_signals <= out_ctrl_signals;
-            end else if (freeze) begin
+            end else if (freeze || trap_en) begin
                 out_ctrl_signals <= '0;
             end else begin
                 out_ctrl_signals <= temp_signals;

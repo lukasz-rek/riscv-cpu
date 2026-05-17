@@ -91,10 +91,8 @@ module csr_regfile (
         trap_pending = isr_pending;
         if (isr_pending) begin
             // trap_pending = 1;
-            if (mip[7])
-                prioritised_isr_cause = M_MACHINE_TIMER;
-            else
-                prioritised_isr_cause = trap_cause;
+            if (mip[7]) prioritised_isr_cause = M_MACHINE_TIMER;
+            else prioritised_isr_cause = trap_cause;
         end else if (trap_taken) begin
             // trap_pending = 1;
             prioritised_isr_cause = trap_cause;
@@ -161,6 +159,7 @@ module csr_regfile (
                     mepc = csr_wr_data;
                 end
                 12'h342: csr_rd_data = mcause_q;
+                12'h343: csr_rd_data = mtval_q;
                 12'h344: csr_rd_data = mip_q;
                 // Machine Counters/Timers
                 12'hC00, 12'hC01: csr_rd_data = mcycle[31:0];
@@ -188,7 +187,7 @@ module csr_regfile (
             mcycle   <= mcycle + 1;
             minstret <= (minstret_incr) ? minstret + 1 : minstret;
             if (trap_en) begin
-                mepc_q.pc <= {trap_pc[31:2], 2'b00};
+                mepc_q.pc <= trap_pc;
                 mcause_q <= mcause_t'(prioritised_isr_cause);
                 mtval_q <= mtval_t'(trap_val);
 

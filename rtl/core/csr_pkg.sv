@@ -83,6 +83,7 @@ package csr_pkg;
         BREAKPOINT = {CAUSE_TRAP, 31'd3},
         LOAD_ADDR_MALIGN = {CAUSE_TRAP, 31'd4},
         LOAD_ACCESS_FAULT = {CAUSE_TRAP, 31'd5},
+        STORE_ADDR_MALIGN = {CAUSE_TRAP, 31'd6},
         U_CALL = {CAUSE_TRAP, 31'd8},
         S_CALL = {CAUSE_TRAP, 31'd9},
         M_CALL = {CAUSE_TRAP, 31'd11},

@@ -22,7 +22,7 @@
 #define LSR_DR    (1 << 0)
 
 #define UART_DIVISOR 43
-#define TIMER_INTERVAL 10000
+#define TIMER_INTERVAL 4297
 
 void uart_init(void) {
     UART_LCR = LCR_DLAB;
@@ -72,27 +72,30 @@ static inline void write_timecmp(uint64_t next) {
     TIMECMP_HI = (uint32_t)(next >> 32);
 }
 
+uint32_t secs;
+
 __attribute__((interrupt("machine")))
 void trap_handler(void) {
     uint32_t mcause;
     __asm__ volatile ("csrr %0, mcause" : "=r"(mcause));
-
     if (mcause & 0x80000000) {
-        // Interrupt
         if ((mcause & 0x7FFFFFFF) == 7) {
-            // Machine timer interrupt — rearm and return to interrupted instruction
+            secs++;
             write_timecmp(read_mtime() + TIMER_INTERVAL);
-            uart_puts("TIMER\r\n");
+            uart_puts("TIMER ");
+            print_hex(secs);
+            uart_putc('\n');
         }
     } else {
-        // Synchronous exception — skip faulting instruction
-        uart_puts("TRAP! mcause=0x");
-        print_hex(mcause);
+        uint32_t mepc, mtval;
+        __asm__ volatile ("csrr %0, mepc"  : "=r"(mepc));
+        __asm__ volatile ("csrr %0, mtval" : "=r"(mtval));
+
+        uart_puts("TRAP! mcause=0x"); print_hex(mcause);
+        uart_puts(" pc=0x");          print_hex(mepc);
+        uart_puts(" mtval=0x");       print_hex(mtval);
         uart_puts("\r\n");
-        uint32_t mepc;
-        __asm__ volatile ("csrr %0, mepc" : "=r"(mepc));
-        mepc += 4;
-        __asm__ volatile ("csrw mepc, %0" :: "r"(mepc));
+        while (1) {}
     }
 }
 
@@ -107,9 +110,9 @@ int main(void) {
     uart_init();
     trap_init();
 
-    uart_puts("Before ebreak\r\n");
-    __asm__ volatile ("ebreak");
-    uart_puts("After ebreak (returned via mret)\r\n");
+    // uart_puts("Before ebreak\r\n");
+    // __asm__ volatile ("ebreak");
+    // uart_puts("After ebreak (returned via mret)\r\n");
 
     // Arm timer before enabling interrupts
     write_timecmp(read_mtime() + TIMER_INTERVAL);
@@ -118,10 +121,37 @@ int main(void) {
     uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
     uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
 
+    secs = 0;
     __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
     __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
 
-    while (1) {
-        uart_puts("Not trapping\n");
+    asm volatile("nop");
+    asm volatile("nop");
+    asm volatile("nop");
+    // asm volatile("ebreak");
+    // asm volatile (
+    //     "li t0, 0x80000002\n\t"
+    //     "jalr zero, t0, 0"
+    //     ::: "t0"
+    // );
+    // asm volatile (".word 0xFFFFFFFF");
+    // asm volatile (".word 0x0000006F | (1 << 21)");  // JAL x0, +2
+    // static uint32_t buf[2] = {0xDEADBEEF, 0xCAFEBABE};
+    // uint32_t *p = buf;
+    // asm volatile (
+    //     "addi %0, %0, 1\n\t"
+    //     "lw t0, 0(%0)"
+    //     : "+r"(p)
+    //     :: "t0"
+    // );
+    static uint32_t dst[2];
+    asm volatile (
+        "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
+        "sw t0, 0(%0)"
+        : "+r"(dst)
+        :: "memory"
+    );
+    while(1) {
+        asm volatile("nop");
     }
 }

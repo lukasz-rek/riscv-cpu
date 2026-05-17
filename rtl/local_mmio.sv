@@ -28,7 +28,7 @@ module local_mmio (
     logic mmio_en;
     logic mmio_en_q;
 
-    assign rd_data = (mmio_en_q) ? mmio_rd_data_q : rd_data_d;
+    assign rd_data   = (mmio_en_q) ? mmio_rd_data_q : rd_data_d;
 
     assign mtime_isr = (mtime >= mtimecmp_q) ? 1 : 0;
 
@@ -40,20 +40,16 @@ module local_mmio (
         mtimecmp = mtimecmp_q;
         if (rd_en || wr_en) begin
             mmio_en = 1;
-            case(addr)
+            case (addr)
                 clint_base + 32'h0000_4000: begin
                     // mtimecmp lo
-                    if (wr_en)
-                        mtimecmp[31:0] = wr_data;
-                    else
-                        mmio_rd_data = mtimecmp_q[31:0];
+                    if (wr_en) mtimecmp[31:0] = wr_data;
+                    else mmio_rd_data = mtimecmp_q[31:0];
                 end
                 clint_base + 32'h0000_4004: begin
                     // mtimecmp hi
-                    if (wr_en)
-                        mtimecmp[63:32] = wr_data;
-                    else
-                        mmio_rd_data = mtimecmp_q[63:32];
+                    if (wr_en) mtimecmp[63:32] = wr_data;
+                    else mmio_rd_data = mtimecmp_q[63:32];
                 end
                 clint_base + 32'h0000_BFF8: mmio_rd_data = mtime[31:0];
                 clint_base + 32'h0000_BFFC: mmio_rd_data = mtime[63:32];
@@ -67,17 +63,17 @@ module local_mmio (
         end
     end
 
-always_ff @(posedge clk) begin
-    if (!rst_n) begin
-        mtime <= '0;
-        mtimecmp_q <= '1;
-        mmio_en_q <= 0;
-    end else begin
-        mtime <= mtime + 1;
-        mtimecmp_q <= mtimecmp;
-        mmio_en_q <= mmio_en;
-        mmio_rd_data_q <= mmio_rd_data;
+    always_ff @(posedge clk) begin
+        if (!rst_n) begin
+            mtime <= '0;
+            mtimecmp_q <= '1;
+            mmio_en_q <= 0;
+        end else begin
+            mtime <= mtime + 1;
+            mtimecmp_q <= mtimecmp;
+            mmio_en_q <= mmio_en;
+            mmio_rd_data_q <= mmio_rd_data;
+        end
     end
-end
 
 endmodule

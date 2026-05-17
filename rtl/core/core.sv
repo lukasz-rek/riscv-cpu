@@ -168,8 +168,8 @@ module core (
         .minstret_incr(minstret_incr),
 
         .trap_stall(trap_stall),
-        .trap_taken  (trap_taken),
-        .trap_target (trap_target),
+        .trap_taken(trap_taken),
+        .trap_target(trap_target),
         .trap_pending(trap_pending),
         .isr_pc(isr_pc),
         .isr_en(isr_en)
