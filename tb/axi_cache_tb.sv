@@ -17,17 +17,29 @@ module axi_cache_tb;
 
     logic [31:0]         rd_data;
     logic                miss;
+    logic                stall;
     logic                dirty_evict;
     logic [255:0]        cache_evicted_data;
-    logic [31:0] evicted_addr;
-
+    logic [31:0]         evicted_addr;
 
     // ---------- DUT ----------
     axi_cache dut (.*);
 
     // ---------- Clock ----------
     initial clk = 0;
-    always #5 clk = ~clk;   // 100 MHz
+    always #5 clk = ~clk;
+
+    // ---------- Clocking block ----------
+
+    task automatic check(input logic cond, input string msg);
+        if (!cond) begin
+            longint unsigned fail_time;
+            fail_time = $time;
+            repeat(1) @(posedge clk);
+            $error("Assert failed at t=%0t: %s", fail_time, msg);
+            $finish;
+        end
+    endtask
 
     // ---------- Reset + init ----------
     initial begin
@@ -43,97 +55,126 @@ module axi_cache_tb;
         repeat (4) @(posedge clk);
         rst_n = 1;
 
-        // 1. Try to access sth, since it's our first load it fails
+        // 1. Cold miss — drive via clocking block, sample next cycle
+        $display("1. Cold Miss Test...");
         @(negedge clk);
-        addr = 32'h0000_0000;
+        addr  = 32'h0000_0000;
         rd_en = 1;
-        #1; // Moment to settle
-        assert(miss == 1) else $error("expected miss, got %b", miss);
-        assert(dirty_evict == 0) else $error("Evicted memory marked as dirty when it wasn't");
 
-        // 2. Load sth after a miss, check it worked, verify miss is up during whole process
+        #1;
+        check(stall == 1, "1. Expect stall after setting address");
         @(negedge clk);
+        check(miss == 1, "1. expected miss during 1st lookup");
+        check(stall == 0, "1. expected low stall during lookup");
+
+        @(negedge clk);
+        check(miss  == 1, "1. expected miss during refill");
+        check(stall == 1, "1. expected stall during refill");
+
+        repeat (4) @(posedge clk); // Wait few cycles simulating AXI read
+        @(negedge clk);
+        // Now we do refill
         cache_load = 2'b01;
-        addr = 32'h0000_0000;
         cache_load_data = 128'hDEAD_BEEF_ABCD_ABCD_CAFE_BABE_EBEB_EBEB;
-        assert(miss == 1) else $error("expected miss still up during 1st load, got %b", miss);
+
+        check(miss  == 1, "1. expected miss during 1st load");
+        check(stall == 1, "1. expected stall during 1st load");
 
         @(negedge clk);
+
         cache_load = 2'b10;
         cache_load_data = 128'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0101_0202;
-        assert(miss == 1) else $error("expected miss still up during 2nd load, got %b", miss);
 
         @(negedge clk);
+        // Now we can check if it reads nicely
         cache_load = 2'b00;
-        rd_en = 1;
-        #1
-        assert(miss == 0) else $error("expected no miss, got %b", miss);
+
+        check(miss == 0, "1. expected low miss after refill");
+        check(stall == 0, "1. expected low stall after refill");
+
         @(negedge clk);
-        // Now we should have BRAM output that is correct on first word
-        assert(rd_data == 32'hEBEB_EBEB) else $error("Expected EBEB_EBEB, got %h", rd_data);
+        check(rd_data == 32'hEBEB_EBEB, "1. expeced diff data from read");
+
+        $display("2. Check if consecutive reads from one cache line are faster");
         addr = 32'h0000_001C; // Last loaded word
+        #1;
+        check(miss == 0, "2. expected low miss in consecutive read");
+        check(stall == 0, "2. expected low stall in consecutive read");
 
         @(negedge clk);
-        assert(rd_data == 32'hAAAA_BBBB) else $error("Expected AAAA_BBBB, got %h", rd_data);
+
+        check(rd_data == 32'hAAAA_BBBB, "2. expeced diff data from consecutive read");
         rd_en = 0;
 
-        // 3. Try to write, see if it sticks
-        addr = 32'h0000_0008;
-        wr_en = 1;
-        wr_data = 32'hDCBA_DCBA;
-        byte_en = '1;
+        $display("3. Check if writes work");
+         addr = 32'h0000_0008;
+         wr_en = 1;
+         wr_data = 32'hDCBA_DCBA;
+         byte_en = '1;
 
-        #1; // Settle
-        assert(miss == 0) else $error("expected no miss for write, got %b", miss);
+         #1;
+         check(miss == 0, "3. Expected low miss when writing to valid cache line");
+         check(stall == 0, "3. Expected low stall when writing to valid cache line");
 
-        @(negedge clk);
-        // Should be written now
-        rd_en = 1;
-        wr_en = 0;
-        byte_en = '0;
-        addr = 32'h0000_0008;
-        #1;
-        assert(miss == 0) else $error("expected no miss when reading write, got %b", miss);
+         @(negedge clk);
+         // Should be written now so let's check it
 
-        @(negedge clk);
-        assert(rd_data == 32'hDCBA_DCBA) else $error("Expected DCBA_DCBA, got %h", rd_data);
-        rd_en = 1;
+         wr_en = 0;
+         rd_en = 1;
+         #1;
+         check(miss == 0, "3. Expected low miss when reading valid cache line");
+         check(stall == 1, "3. Expected high stall when reading valid cache line");
 
-        // 4. Evict it, now that it's dirty we need to capture evicted data and verify
+         @(negedge clk);
 
-        addr = 32'h0000_8000;
-        #1;
-        assert(miss == 1) else $error("expected miss during eviction, got %b", miss);
-        assert(dirty_evict == 1) else $error("Evicted memory not marked dirty when it was");
+         check(miss == 0, "3. Expected low miss when reading from valid cache line");
+         check(stall == 0, "3. Expected low stall when reading from valid cache line after write");
 
-        // Verify proper data evicted 1st time
-        @(negedge clk);
-        rd_en = 0;
-        assert(cache_evicted_data == 256'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0101_0202_DEAD_BEEF_DCBA_DCBA_CAFE_BABE_EBEB_EBEB) else $error("Wrong cache data on eviction, got %h", cache_evicted_data);
+         @(negedge clk);
+         check(rd_data == 32'hDCBA_DCBA, "3. Expected diff data after write");
+
+         $display("4. Check that eviction works and is marked properly");
+          addr = 32'h0000_8000;
+          #1;
+          check(stall == 1, "4. Expected stall when starting evicting");
+
+          // Wait 2 cycles for stall to go down to check if we have dirty_evict
+          @(negedge clk);
+          @(negedge clk);
+          check(miss == 1, "4. Expected miss when evicting");
+          check(dirty_evict == 1, "4. Expected dirty evict when doing dirty evict");
+          check(stall == 0, "4. Expected low stall when giving eviction result");
+
+          check(evicted_addr == 32'h0000_0000, "wrong evicted addr");
+          check(cache_evicted_data == 256'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0101_0202_DEAD_BEEF_DCBA_DCBA_CAFE_BABE_EBEB_EBEB,"wrong evicted data");
+
+          repeat (8) @(posedge clk); // Wait few cycles simulating AXI write + read
 
 
-       // Wait and write proper data
-       repeat (4) @(negedge clk);
-       assert(miss == 1) else $error("expected miss during eviction, got %b", miss);
-       cache_load = 2'b01;
-       addr = 32'h0000_8000;
-       cache_load_data = 128'h0101_0202_0303_0404_0505_0606_0707_0808;
-       @(negedge clk);
-       assert(miss == 1) else $error("expected miss during eviction, got %b", miss);
-       cache_load = 2'b10;
-       cache_load_data = 128'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0101_0202;
-       @(negedge clk);
-       cache_load = 2'b00;
-       rd_en = 1;
-       #1
-       assert(miss == 0) else $error("expected no miss, got %b", miss);
-       @(negedge clk);
-       assert(rd_data == 32'h0707_0808) else $error("Expected EBEB_EBEB, got %h", rd_data);
-       addr = 32'h0000_001C; // Last loaded word
+          check(miss == 1, "4. Expected miss during eviction refill");
+          cache_load = 2'b01;
+          cache_load_data = 128'h0101_0202_0303_0404_0505_0606_0707_0808;
 
-       @(negedge clk);
-       assert(rd_data == 32'hAAAA_BBBB) else $error("Expected AAAA_BBBB, got %h", rd_data);
-       rd_en = 0;
+          @(negedge clk);
+
+
+          cache_load = 2'b10;
+          cache_load_data = 128'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0101_0202;
+
+          @(negedge clk);
+
+          cache_load = 2'b00;
+
+          check(miss == 0, "1. expected low miss after refill");
+          check(stall == 0, "1. expected low stall after refill");
+
+          @(negedge clk);
+
+          check(rd_data == 32'h0707_0808, "Wrong data after cache eviction refill");
+          rd_en = 0;
+
+          @(negedge clk);
+          check(dut.cache_state == '0, "Cache doesn't go off when rd_en low");
 
 
         $display("All cache tests passed!");
