@@ -17,10 +17,12 @@ This adds up to 32KB per cache, all in BRAM. The management data is also stored 
 
 Cycle 0: ADDR, RD_EN | WR_EN, DATA
 
-Cycle 1: If miss && stall == 0, then valid operation on next cycle. Else it is a miss and we need to start refill actions.
+Cycle 1: If miss && stall == 0, then valid operation on next cycle. Else it is a miss and we need to start refill actions. If stall is high, still waiting.
 
 Cycle 2: Valid data shown
 
 ## AXI Master Behaviour
 
-TBD
+Since the cache signals ready data on next cycle on if !stall && !miss, then in this case the master simply forwards whatever data is there in next cycle and doesn't do anything. However if !stall && miss, then depending on whether it is dirty eviction it performs the appropriate cache refill.
+
+Similarly, the shown interface works on the same rules though with lesser complexity. If stall_I/D is up, then the core waits until it goes low. This signals the operation is performed on the following cycle.

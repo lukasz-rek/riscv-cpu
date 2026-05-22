@@ -75,6 +75,10 @@ module axi_cache #(
     tag_entry_t cache_info;
     cache_state_t cache_state;
 
+    initial begin
+        for (int i = 0; i < NUM_SETS; i++) cache_info_q[i] = '0;
+    end
+
     // Handle the lookup
     wire [INDEX_BITS-1:0] requested_line;
     logic [INDEX_BITS-1:0] prev_requested_line;
@@ -91,9 +95,9 @@ module axi_cache #(
     // Handle stall indication
     assign consecutive_read = (prev_requested_line == requested_line) && !miss;
 
-    assign stall = !(cache_state == CACHE_LOOKUP || (cache_state == CACHE_ACCESS && consecutive_read));
+    assign stall = !(cache_state == CACHE_LOOKUP || (cache_state == CACHE_ACCESS && consecutive_read)) && (rd_en || wr_en);
 
-    assign miss = (tag != cache_info.tag) || !cache_info.valid;
+    assign miss = ((tag != cache_info.tag) || !cache_info.valid ) && (rd_en || wr_en);
     assign dirty_evict = (miss && cache_info.dirty);
 
 
@@ -122,6 +126,7 @@ module axi_cache #(
             cache_line <= '0;
             cache_state <= CACHE_OFF;
             prev_requested_line <= '0;
+            cache_info <= '0;
         end else begin
             requested_block_q <= requested_block;
             case (cache_state)

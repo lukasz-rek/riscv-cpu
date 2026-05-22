@@ -109,22 +109,22 @@ module axi_master_tb;
         //   offset 0x10: 0x55555555
         //   ...
         slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0000,
+            36'h8_C000_0000,
             128'h44444444_33333333_22222222_DEADBEEF,
             16'hFFFF
         );
         slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0010,
+            36'h8_C000_0010,
             128'h88888888_77777777_66666666_55555555,
             16'hFFFF
         );
         slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_4000,
+            36'h8_C000_8000,
             128'hABCDABCD_BCDADBCA_CCDDDDCC_AABBBBAA,
             16'hFFFF
         );
         slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0040,
+            36'h8_C000_0040,
             128'hFEFEFEFE_CDCDCDCD_0F0F0F0F_ACACACAC,
             16'hFFFF
         );
@@ -132,7 +132,10 @@ module axi_master_tb;
 
 
         addr_d  = 32'h0;
+        addr_i = '0;
         rd_en_d = 1'b0;
+        rd_en_i = 1'b0;
+        wr_en = 1'b0;
 
         rst_n = 0;
         #500;
@@ -141,20 +144,20 @@ module axi_master_tb;
 
         // Issue a read at address 0x0
         @(negedge clk);
-        addr_d  <= 32'h0000_0000;
+        addr_d  <= 32'h8000_0000;
         rd_en_d <= 1'b1;
         #1; // Delay moment for stall_D to actually propagate
 
         // Wait for the miss to be serviced
         while (stall_D) @(negedge clk);
-
+        @(negedge clk);
 
         $display("[TB] rd_data_d = 0x%08h (expected 0xDEADBEEF)", rd_data_d);
         rd_en_d <= 1'b0;
 
         @(negedge clk);
         rd_en_d <= 1'b1;
-        addr_d  <= 32'h0000_000C;
+        addr_d  <= 32'h8000_000C;
 
         @(negedge clk);
         $display("[TB] rd_data_d = 0x%08h (expected 0x44444444)", rd_data_d);
@@ -171,19 +174,26 @@ module axi_master_tb;
         rd_en_d <= 1'b1;
 
         @(negedge clk);
+        @(negedge clk);
         $display("[TB] rd_data_d = 0x%08h (expected 0xABCDDBCA)", rd_data_d);
         // Now start doing reads that evict previous line and verify it got written to AXI
-        addr_d <= 32'h0000_4000;
+        addr_d <= 32'h8000_8000;
+
         #1;
+        assert(stall_D == 1);
+
+
+        @(negedge clk);
 
         assert(stall_D == 1);
         assert(dut.dirty_evict_d == 1);
 
         while (stall_D) @(negedge clk); // Should have gotten written
+        @(negedge clk);
         $display("[TB] rd_data_d = 0x%08h (expected 0xAABBBBAA)", rd_data_d);
 
 
-        evicted_line = slv_agent.mem_model.backdoor_memory_read(36'h8_4000_0000);
+        evicted_line = slv_agent.mem_model.backdoor_memory_read(36'h8_c000_0000);
         assert(evicted_line[127:96] === 32'hABCD_DCBA)
             else $error("[TB] Eviction mismatch: got 0x%08h", evicted_line[127:96]);
 
@@ -201,8 +211,8 @@ module axi_master_tb;
         $display("[TB] rd_data_i = 0x%08h (expected 0xACACACAC)", rd_data_i);
         // And that missing on both prioritizes I and doesn't mess anything up
         rd_en_d <= 1;
-        addr_i <= 32'h0000_0000;
-        addr_d <= 32'h0000_0000;
+        addr_i <= 32'h8000_0000;
+        addr_d <= 32'h8000_0000;
         #1;
 
         assert(stall_I == 1)
@@ -225,7 +235,7 @@ module axi_master_tb;
 
     // Timeout
     initial begin
-        #2_000_000;
+        #100_000;
         $display("[TB] TIMEOUT");
         $finish;
     end
