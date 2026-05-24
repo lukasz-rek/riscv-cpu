@@ -167,7 +167,7 @@ module axi_master_tb;
         check(rd_data_d == 32'hDEADBEEF, "Diff data expected on first read");
         addr_d  = 32'h8000_000C;
         #1;
-        check(stall_D == 1, "Stall low on start of second read");
+        check(stall_D == 0, "Stall high on start of second read despite cache line still hot");
 
         while (stall_D) @(negedge clk);
         @(negedge clk);
@@ -182,14 +182,14 @@ module axi_master_tb;
         wr_data = 32'hABCD_DCBA;
         byte_en = '1;
         #1;
-        check(stall_D == 1, "Stall high on write");
+        check(stall_D == 0, "Stall high on write despite line hot");
 
         while (stall_D) @(negedge clk);
         @(negedge clk);
         wr_en = 1'b0;
         rd_en_d = 1'b1;
         #1;
-        check(stall_D == 1, "Stall high on read after write");
+        check(stall_D == 0, "Stall low on read after write");
         while (stall_D) @(negedge clk);
         @(negedge clk);
 
