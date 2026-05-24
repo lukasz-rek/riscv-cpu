@@ -55,21 +55,24 @@ module axi_cache_tb;
         repeat (4) @(posedge clk);
         rst_n = 1;
 
-        // 1. Cold miss — drive via clocking block, sample next cycle
-        $display("1. Cold Miss Test...");
+        @(negedge clk);
+        // Let's check some default behaviour
+        check(stall == 0, "Stall not 0 at start");
+        check(miss == 0, "Miss not 0 at start");
+        check(dirty_evict == 0, "Dirty evict not 0 at start");
+
+        // 1. Hot miss since the 0 tag is already preloaded after reset
+        $display("1. Hot Miss Test...");
         @(negedge clk);
         addr  = 32'h0000_0000;
         rd_en = 1;
 
         #1;
-        check(stall == 1, "1. Expect stall after setting address");
-        @(negedge clk);
-        check(miss == 1, "1. expected miss during 1st lookup");
-        check(stall == 0, "1. expected low stall during lookup");
+        check(stall == 0, "1. Expect no stall after setting address on hot");
+        check(miss == 1, "1. Expected miss on miss after setting addr on hot");
 
         @(negedge clk);
         check(miss  == 1, "1. expected miss during refill");
-        check(stall == 1, "1. expected stall during refill");
 
         repeat (4) @(posedge clk); // Wait few cycles simulating AXI read
         @(negedge clk);
@@ -78,13 +81,13 @@ module axi_cache_tb;
         cache_load_data = 128'hDEAD_BEEF_ABCD_ABCD_CAFE_BABE_EBEB_EBEB;
 
         check(miss  == 1, "1. expected miss during 1st load");
-        check(stall == 1, "1. expected stall during 1st load");
 
         @(negedge clk);
 
         cache_load = 2'b10;
         cache_load_data = 128'hAAAA_BBBB_CCCC_DDDD_EEEE_FFFF_0101_0202;
 
+        check(miss  == 1, "1. expected miss during 2nd load");
         @(negedge clk);
         // Now we can check if it reads nicely
         cache_load = 2'b00;
@@ -123,12 +126,7 @@ module axi_cache_tb;
          rd_en = 1;
          #1;
          check(miss == 0, "3. Expected low miss when reading valid cache line");
-         check(stall == 1, "3. Expected high stall when reading valid cache line");
-
-         @(negedge clk);
-
-         check(miss == 0, "3. Expected low miss when reading from valid cache line");
-         check(stall == 0, "3. Expected low stall when reading from valid cache line after write");
+         check(stall == 0, "3. Expected low stall when reading valid cache line");
 
          @(negedge clk);
          check(rd_data == 32'hDCBA_DCBA, "3. Expected diff data after write");
@@ -136,10 +134,8 @@ module axi_cache_tb;
          $display("4. Check that eviction works and is marked properly");
           addr = 32'h0000_8000;
           #1;
-          check(stall == 1, "4. Expected stall when starting evicting");
+          check(miss == 1, "4. Expected miss when starting evicting on hot");
 
-          // Wait 2 cycles for stall to go down to check if we have dirty_evict
-          @(negedge clk);
           @(negedge clk);
           check(miss == 1, "4. Expected miss when evicting");
           check(dirty_evict == 1, "4. Expected dirty evict when doing dirty evict");
@@ -171,11 +167,16 @@ module axi_cache_tb;
           @(negedge clk);
 
           check(rd_data == 32'h0707_0808, "Wrong data after cache eviction refill");
-          rd_en = 0;
 
+          $display("5. Check that going across lines is correct");
+          addr = 32'h0000_0020;
+          #1;
+
+          check(stall == 1, "Stall not 0 when changing line");
           @(negedge clk);
-          check(dut.cache_state == '0, "Cache doesn't go off when rd_en low");
 
+          check(stall == 0, "Stall should have gone low now when changing lane");
+          check(miss == 1, "We should have a miss here");
 
         $display("All cache tests passed!");
         $finish;

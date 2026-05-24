@@ -13,8 +13,7 @@ Tag bits:    17
 Index bits:  10
 Offset bits: 5
 ```
-This adds up to 32KB per cache, all in BRAM. The management data is also stored in BRAM for better resource utilization, though this necessitates an additional cycle for valid bit lookup, after which the data can be served on the cycle after that. So for a cache access we need to pull relevant control bits (check if everything's ok), then fetch data for subsequent cycle. For speedup, we keep the most recent control bits as then we can just give data immediately on next access.
-
+This adds up to 32KB per cache, all in BRAM. The management data is also stored in BRAM for better resource utilization, though this necessitates an additional cycle for valid bit lookup, after which the data can be served on the cycle after that. So for a cache access we need to pull relevant control bits (check if everything's ok), then fetch data for subsequent cycle. For speedup, we keep the most recent control bits as then we can just give data immediately on next access. When writing to the cache or cache information bits we also bypass BRAM alongside the transaction to gain some cycles.
 
 
 ## AXI Master Behaviour

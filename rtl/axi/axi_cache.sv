@@ -26,7 +26,7 @@ module axi_cache #(
     // Handle inserting things into cache, for perf reasons
     // we're loading 256b - 8 words
     input logic [  1:0] cache_load,
-    input logic [127:0] cache_load_data,
+    input logic [127:0] cache_load_data, // AXI can only supply 4 words per transaction
 
 
     output logic [DATA_WIDTH-1:0] rd_data,
@@ -43,16 +43,6 @@ module axi_cache #(
         logic [TAG_BITS-1:0] tag;
     } tag_entry_t;
 
-    typedef enum logic [3:0] {
-        CACHE_OFF,
-        CACHE_LOOKUP,
-        // Now depending on valid we go
-        CACHE_ACCESS,
-        // Or on miss
-        CACHE_REFILL
-    } cache_state_t;
-
-
     initial begin
         $display("=== Cache Configuration ===");
         $display("Line size:   %0d bytes (%0d words)", LINE_BYTES, CACHE_LINE_SIZE);
@@ -67,46 +57,43 @@ module axi_cache #(
     // -------------------------------------------------------------------------
     // BRAM storage arrays
     // -------------------------------------------------------------------------
-    (* ram_style = "block" *) logic [255:0] cache [NUM_SETS];
-    (* ram_style = "block" *) logic [TAG_BITS+1:0] cache_info_bram [NUM_SETS];  // {TAG, VALID, DIRTY}
+    (* ram_style = "block" *)logic       [       255:0] cache              [NUM_SETS];
+    (* ram_style = "block" *)logic       [TAG_BITS+1:0] cache_info         [NUM_SETS];  // {TAG, VALID, DIRTY}
 
-    // Registered BRAM outputs (no reset — these are the BRAM output regs)
-    logic [255:0]   cache_line;
-    tag_entry_t     cache_info;
+    logic       [       255:0] cache_line;
+    tag_entry_t                current_cache_info;
 
     // Write-side combinational nets
-    logic [255:0]   cache_wdata;
-    logic [31:0]    cache_wbe;
-    tag_entry_t     cache_info_write;
-    logic           cache_info_we;
+    logic       [       255:0] cache_wdata;
+    logic       [        31:0] cache_wbe;
+    tag_entry_t                cache_info_write;
+    logic                      cache_info_we;
 
-    // FSM
-    cache_state_t cache_state;
-
-    // BRAM init (Vivado picks this up as INIT_xx parameters)
     initial begin
-        for (int i = 0; i < NUM_SETS; i++) cache[i]           = '0;
-        for (int i = 0; i < NUM_SETS; i++) cache_info_bram[i] = '0;
+        for (int i = 0; i < NUM_SETS; i++) cache[i] = '0;
+        for (int i = 0; i < NUM_SETS; i++) cache_info[i] = '0;
     end
 
     // -------------------------------------------------------------------------
     // Address decomposition
     // -------------------------------------------------------------------------
     wire  [INDEX_BITS-1:0]  requested_line;
-    wire  [TAG_BITS-1:0]    tag;
+    logic [INDEX_BITS-1:0]  current_cache_info_line;
+    wire  [TAG_BITS-1:0]    requested_tag;
     wire  [OFFSET_BITS-3:0] requested_block;  // word index within line
-    logic [OFFSET_BITS-3:0] requested_block_q;
+    logic [OFFSET_BITS-3:0] requested_block_q; // needed for masking on access due to BRAM pattern
 
     assign requested_block = addr[2+:OFFSET_BITS-2];
-    assign requested_line  = addr[OFFSET_BITS+:INDEX_BITS];
-    assign tag             = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
+    assign requested_line = addr[OFFSET_BITS+:INDEX_BITS];
+    assign requested_tag = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
 
     // -------------------------------------------------------------------------
     // Control / status outputs
     // -------------------------------------------------------------------------
-    assign stall       = (cache_state != CACHE_LOOKUP) && (rd_en || wr_en);
-    assign miss        = ((tag != cache_info.tag) || !cache_info.valid) && (rd_en || wr_en);
-    assign dirty_evict = (miss && cache_info.dirty);
+
+    assign stall = (rd_en || wr_en) && (requested_line != current_cache_info_line);
+    assign miss        = (rd_en || wr_en) &&  (requested_tag != current_cache_info.tag || !current_cache_info.valid);
+    assign dirty_evict = miss && current_cache_info.dirty;
 
     // -------------------------------------------------------------------------
     // Write-port datapath (combinational)
@@ -115,10 +102,13 @@ module axi_cache #(
         cache_wdata        = '0;
         cache_wbe          = '0;
         cache_info_write   = '0;
+
         cache_info_we      = 1'b0;
+        cache_info_write   = current_cache_info;
+
 
         cache_evicted_data = cache_line;
-        evicted_addr       = {cache_info.tag, requested_line, requested_block, 2'b0};
+        evicted_addr       = {current_cache_info.tag, requested_line, {OFFSET_BITS{1'b0}}};
 
         unique case (cache_load)
             2'b01: begin
@@ -126,7 +116,7 @@ module axi_cache #(
                 cache_wbe[15:0]    = '1;
             end
             2'b10: begin
-                cache_info_write.tag   = tag;
+                cache_info_write.tag   = requested_tag;
                 cache_info_write.dirty = 1'b0;
                 cache_info_write.valid = 1'b1;
                 cache_info_we          = 1'b1;
@@ -134,61 +124,50 @@ module axi_cache #(
                 cache_wbe[31:16]       = '1;
             end
             default: begin
-                if (wr_en && !miss && cache_state == CACHE_LOOKUP) begin
+                if (wr_en && !miss) begin
                     for (int i = 0; i < 8; i++) cache_wdata[i*32+:32] = wr_data;
                     cache_wbe[requested_block*4+:4] = byte_en;
+                    cache_info_we = 1'b1;
+                    cache_info_write.dirty = 1'b1;
                 end
             end
         endcase
     end
 
     // -------------------------------------------------------------------------
-    // Data BRAM — canonical byte-write template (UG901)
-    //   * Unconditional registered read
-    //   * Per-byte conditional write
-    //   * NO reset on cache_line — it's the BRAM output register
+    // BRAM Patterns -- Needed so Vivado does what it has to
     // -------------------------------------------------------------------------
     always_ff @(posedge clk) begin
-        for (int i = 0; i < 32; i++) begin
-            if (cache_wbe[i])
-                cache[requested_line][i*8+:8] <= cache_wdata[i*8+:8];
-        end
+        // Data
+
         cache_line <= cache[requested_line];
+
+        for (int i = 0; i < 32; i++) begin
+            if (cache_wbe[i]) begin
+                cache[requested_line][i*8+:8] <= cache_wdata[i*8+:8];
+                cache_line[i*8+:8] <= cache_wdata[i*8+:8];
+            end
+        end
+
+        // Cache info
+        current_cache_info <= tag_entry_t'(cache_info[requested_line]);
+
+        if (cache_info_we) begin
+            cache_info[requested_line] <= cache_info_write;
+            current_cache_info <= cache_info_write;  // Skip RAW cycle
+        end
+        current_cache_info_line <= requested_line;
     end
 
-    // -------------------------------------------------------------------------
-    // Tag BRAM — same template
-    // -------------------------------------------------------------------------
-    always_ff @(posedge clk) begin
-        if (cache_info_we)
-            cache_info_bram[requested_line] <= cache_info_write;
-        cache_info <= tag_entry_t'(cache_info_bram[requested_line]);
-    end
 
     // -------------------------------------------------------------------------
-    // FSM (no BRAM signals reset here)
+    // Rest of cache state and transitions
     // -------------------------------------------------------------------------
     always_ff @(posedge clk) begin
         if (!rst_n) begin
-            cache_state       <= CACHE_OFF;
             requested_block_q <= '0;
         end else begin
             requested_block_q <= requested_block;
-            case (cache_state)
-                CACHE_OFF: begin
-                    if (rd_en || wr_en) cache_state <= CACHE_LOOKUP;
-                end
-                CACHE_LOOKUP: begin
-                    if (cache_info.valid && !miss) cache_state <= CACHE_ACCESS;
-                    else                           cache_state <= CACHE_REFILL;
-                end
-                CACHE_ACCESS: cache_state <= CACHE_OFF;
-                CACHE_REFILL: begin
-                    // Exit refill once the upper half + tag have been written
-                    if (cache_load == 2'b10) cache_state <= CACHE_LOOKUP;
-                end
-                default: cache_state <= CACHE_OFF;
-            endcase
         end
     end
 
