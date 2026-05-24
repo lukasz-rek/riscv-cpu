@@ -27,8 +27,11 @@ limitations under the License.
 #define UART_FCR  (*(volatile ee_u32 *)(UART_BASE + 0x08))
 #define UART_LSR  (*(volatile ee_u32 *)(UART_BASE + 0x14))
 #define LSR_THRE  (1 << 5)
-// #define UART_DIVISOR 43  // 80MHz / (16 * 115200)
-#define UART_DIVISOR 33  // 60MHz / (16 * 115200) = 32.55 → 33
+#define UART_BAUD           115200
+#define UART_DIVISOR_BAUD(freq, baud)  (((freq) + (16 * (baud)) / 2) / (16 * (baud)))
+#define EE_TICKS_PER_SEC           100000000
+
+#define UART_DIVISOR  UART_DIVISOR_BAUD(EE_TICKS_PER_SEC, UART_BAUD)
 
 
 #define ZEROPAD   (1 << 0) /* Pad with zero */

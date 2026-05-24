@@ -28,7 +28,6 @@ module axi_cache #(
     input logic [  1:0] cache_load,
     input logic [127:0] cache_load_data, // AXI can only supply 4 words per transaction
 
-
     output logic [DATA_WIDTH-1:0] rd_data,
     output logic                  stall,
     output logic                  miss,
@@ -57,17 +56,34 @@ module axi_cache #(
     // -------------------------------------------------------------------------
     // BRAM storage arrays
     // -------------------------------------------------------------------------
-    (* ram_style = "block" *)logic       [       255:0] cache              [NUM_SETS];
-    (* ram_style = "block" *)logic       [TAG_BITS+1:0] cache_info         [NUM_SETS];  // {TAG, VALID, DIRTY}
+    (* ram_style = "block" *) logic [255:0]         cache      [NUM_SETS];
+    (* ram_style = "block" *) logic [TAG_BITS+1:0]  cache_info [NUM_SETS]; // {TAG, VALID, DIRTY}
 
-    logic       [       255:0] cache_line;
-    tag_entry_t                current_cache_info;
+    // Raw BRAM outputs — these regs have EXACTLY ONE driver so they map
+    // onto the BRAM primitive's internal output flop. Do not add any
+    // other assignments to these. Bypass happens outside the BRAM.
+    logic       [255:0] cache_line_raw;
+    tag_entry_t         current_cache_info_raw;
+
+    // Post-bypass versions used everywhere else in the module
+    logic       [255:0] cache_line;
+    tag_entry_t         current_cache_info;
+
+    logic       [INDEX_BITS-1:0]   current_cache_info_line;
 
     // Write-side combinational nets
     logic       [       255:0] cache_wdata;
     logic       [        31:0] cache_wbe;
     tag_entry_t                cache_info_write;
     logic                      cache_info_we;
+
+    // Registered copies of the previous-cycle write request — used to bypass
+    // the BRAM read-first behavior when the line we're reading was just written.
+    logic       [255:0]            cache_wdata_q;
+    logic       [31:0]             cache_wbe_q;
+    logic       [INDEX_BITS-1:0]   write_line_q;
+    tag_entry_t                    cache_info_write_q;
+    logic                          cache_info_we_q;
 
     initial begin
         for (int i = 0; i < NUM_SETS; i++) cache[i] = '0;
@@ -78,21 +94,19 @@ module axi_cache #(
     // Address decomposition
     // -------------------------------------------------------------------------
     wire  [INDEX_BITS-1:0]  requested_line;
-    logic [INDEX_BITS-1:0]  current_cache_info_line;
     wire  [TAG_BITS-1:0]    requested_tag;
-    wire  [OFFSET_BITS-3:0] requested_block;  // word index within line
-    logic [OFFSET_BITS-3:0] requested_block_q; // needed for masking on access due to BRAM pattern
+    wire  [OFFSET_BITS-3:0] requested_block;     // word index within line
+    logic [OFFSET_BITS-3:0] requested_block_q;   // needed for masking on access due to BRAM pattern
 
     assign requested_block = addr[2+:OFFSET_BITS-2];
-    assign requested_line = addr[OFFSET_BITS+:INDEX_BITS];
-    assign requested_tag = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
+    assign requested_line  = addr[OFFSET_BITS+:INDEX_BITS];
+    assign requested_tag   = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
 
     // -------------------------------------------------------------------------
     // Control / status outputs
     // -------------------------------------------------------------------------
-
-    assign stall = (rd_en || wr_en) && (requested_line != current_cache_info_line);
-    assign miss        = (rd_en || wr_en) &&  (requested_tag != current_cache_info.tag || !current_cache_info.valid);
+    assign stall       = (rd_en || wr_en) && (requested_line != current_cache_info_line);
+    assign miss        = (rd_en || wr_en) && (requested_tag != current_cache_info.tag || !current_cache_info.valid);
     assign dirty_evict = miss && current_cache_info.dirty;
 
     // -------------------------------------------------------------------------
@@ -105,7 +119,6 @@ module axi_cache #(
 
         cache_info_we      = 1'b0;
         cache_info_write   = current_cache_info;
-
 
         cache_evicted_data = cache_line;
         evicted_addr       = {current_cache_info.tag, requested_line, {OFFSET_BITS{1'b0}}};
@@ -127,48 +140,79 @@ module axi_cache #(
                 if (wr_en && !miss) begin
                     for (int i = 0; i < 8; i++) cache_wdata[i*32+:32] = wr_data;
                     cache_wbe[requested_block*4+:4] = byte_en;
-                    cache_info_we = 1'b1;
-                    cache_info_write.dirty = 1'b1;
+                    cache_info_we                   = 1'b1;
+                    cache_info_write.dirty          = 1'b1;
                 end
             end
         endcase
     end
 
     // -------------------------------------------------------------------------
-    // BRAM Patterns -- Needed so Vivado does what it has to
+    // BRAM patterns — KEEP CLEAN. Each output reg has exactly one driver,
+    // otherwise inference falls back to LUTRAM.
     // -------------------------------------------------------------------------
     always_ff @(posedge clk) begin
-        // Data
-
-        cache_line <= cache[requested_line];
+        // Data array — read-first inference template
+        cache_line_raw <= cache[requested_line];
 
         for (int i = 0; i < 32; i++) begin
             if (cache_wbe[i]) begin
                 cache[requested_line][i*8+:8] <= cache_wdata[i*8+:8];
-                cache_line[i*8+:8] <= cache_wdata[i*8+:8];
             end
         end
 
-        // Cache info
-        current_cache_info <= tag_entry_t'(cache_info[requested_line]);
-
+        // Tag/info array
+        current_cache_info_raw <= tag_entry_t'(cache_info[requested_line]);
         if (cache_info_we) begin
             cache_info[requested_line] <= cache_info_write;
-            current_cache_info <= cache_info_write;  // Skip RAW cycle
         end
+
+        // Line that the BRAM output regs currently hold
         current_cache_info_line <= requested_line;
     end
 
-
     // -------------------------------------------------------------------------
-    // Rest of cache state and transitions
+    // RAW bypass — register the previous cycle's write request and mux the
+    // written bytes / new tag into the BRAM read outputs combinationally.
+    // This recovers the "skip RAW cycle" behavior without touching the
+    // BRAM output registers.
     // -------------------------------------------------------------------------
     always_ff @(posedge clk) begin
         if (!rst_n) begin
-            requested_block_q <= '0;
+            cache_wbe_q     <= '0;
+            cache_info_we_q <= 1'b0;
         end else begin
-            requested_block_q <= requested_block;
+            cache_wdata_q      <= cache_wdata;
+            cache_wbe_q        <= cache_wbe;
+            write_line_q       <= requested_line;
+            cache_info_write_q <= cache_info_write;
+            cache_info_we_q    <= cache_info_we;
         end
+    end
+
+    // Per-byte data bypass — only when last cycle's write hit the line that
+    // the BRAM output regs are currently holding.
+    always_comb begin
+        cache_line = cache_line_raw;
+        if (write_line_q == current_cache_info_line) begin
+            for (int i = 0; i < 32; i++) begin
+                if (cache_wbe_q[i]) cache_line[i*8+:8] = cache_wdata_q[i*8+:8];
+            end
+        end
+    end
+
+    // Tag/info bypass
+    assign current_cache_info =
+        (cache_info_we_q && (write_line_q == current_cache_info_line))
+            ? cache_info_write_q
+            : current_cache_info_raw;
+
+    // -------------------------------------------------------------------------
+    // rd_data path
+    // -------------------------------------------------------------------------
+    always_ff @(posedge clk) begin
+        if (!rst_n) requested_block_q <= '0;
+        else        requested_block_q <= requested_block;
     end
 
     assign rd_data = cache_line[requested_block_q*32+:32];
