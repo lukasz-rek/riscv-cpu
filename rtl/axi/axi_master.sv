@@ -136,7 +136,7 @@ module axi_master #(
         .evicted_addr(evicted_addr_i)
     );
 
-    assign stall_D = (stall_d || miss_d);
+    assign stall_D = (stall_d || miss_d) || (is_mmio && !mmio_valid);
     assign stall_I = (stall_i || miss_i);
 
     assign cache_evicted_data = (i_stall_in_progress) ? cache_evicted_data_i : cache_evicted_data_d;
@@ -303,7 +303,6 @@ module axi_master #(
 
 
 
-    // assign stall_D   = d_out_stall_D || (!wr_en_q && wr_en) || (is_mmio && !mmio_valid);
 
 
     // assign cache_load_d = (!i_stall_in_progress) ? cache_load : '0;

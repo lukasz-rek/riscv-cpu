@@ -1,4 +1,3 @@
-
 module axi_cache #(
     parameter int ADDR_WIDTH = 32,
     parameter int DATA_WIDTH = 32,
@@ -65,118 +64,134 @@ module axi_cache #(
         $display("===========================");
     end
 
-    // Initialize cache + bookkeeping
-    (* ram_style = "block" *) logic [255:0] cache[NUM_SETS];
-    logic [255:0] cache_line;
-    logic [255:0] cache_wdata;
-    logic [31:0] cache_wbe;
+    // -------------------------------------------------------------------------
+    // BRAM storage arrays
+    // -------------------------------------------------------------------------
+    (* ram_style = "block" *) logic [255:0] cache [NUM_SETS];
+    (* ram_style = "block" *) logic [TAG_BITS+1:0] cache_info_bram [NUM_SETS];  // {TAG, VALID, DIRTY}
 
-    tag_entry_t cache_info_q[NUM_SETS];  // TAG, VALID, DIRTY
-    tag_entry_t cache_info;
+    // Registered BRAM outputs (no reset — these are the BRAM output regs)
+    logic [255:0]   cache_line;
+    tag_entry_t     cache_info;
+
+    // Write-side combinational nets
+    logic [255:0]   cache_wdata;
+    logic [31:0]    cache_wbe;
+    tag_entry_t     cache_info_write;
+    logic           cache_info_we;
+
+    // FSM
     cache_state_t cache_state;
 
+    // BRAM init (Vivado picks this up as INIT_xx parameters)
     initial begin
-        for (int i = 0; i < NUM_SETS; i++) cache_info_q[i] = '0;
+        for (int i = 0; i < NUM_SETS; i++) cache[i]           = '0;
+        for (int i = 0; i < NUM_SETS; i++) cache_info_bram[i] = '0;
     end
 
-    // Handle the lookup
-    wire [INDEX_BITS-1:0] requested_line;
-    logic [INDEX_BITS-1:0] prev_requested_line;
-    wire [TAG_BITS-1:0] tag;
-    wire [OFFSET_BITS-3:0] requested_block;  // Shorter by 2 bits cause we're selecting words only
+    // -------------------------------------------------------------------------
+    // Address decomposition
+    // -------------------------------------------------------------------------
+    wire  [INDEX_BITS-1:0]  requested_line;
+    wire  [TAG_BITS-1:0]    tag;
+    wire  [OFFSET_BITS-3:0] requested_block;  // word index within line
     logic [OFFSET_BITS-3:0] requested_block_q;
 
-    wire consecutive_read;
-
     assign requested_block = addr[2+:OFFSET_BITS-2];
-    assign requested_line = addr[OFFSET_BITS+:INDEX_BITS];
-    assign tag = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
+    assign requested_line  = addr[OFFSET_BITS+:INDEX_BITS];
+    assign tag             = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
 
-    // Handle stall indication
-    assign consecutive_read = (prev_requested_line == requested_line) && !miss;
-
-    assign stall = !(cache_state == CACHE_LOOKUP || (cache_state == CACHE_ACCESS && consecutive_read)) && (rd_en || wr_en);
-
-    assign miss = ((tag != cache_info.tag) || !cache_info.valid ) && (rd_en || wr_en);
+    // -------------------------------------------------------------------------
+    // Control / status outputs
+    // -------------------------------------------------------------------------
+    assign stall       = (cache_state != CACHE_LOOKUP) && (rd_en || wr_en);
+    assign miss        = ((tag != cache_info.tag) || !cache_info.valid) && (rd_en || wr_en);
     assign dirty_evict = (miss && cache_info.dirty);
 
-
-    // Intermediate signals so BRAM is properly inferred
+    // -------------------------------------------------------------------------
+    // Write-port datapath (combinational)
+    // -------------------------------------------------------------------------
     always_comb begin
-        cache_wdata = '0;
-        cache_wbe = '0;
+        cache_wdata        = '0;
+        cache_wbe          = '0;
+        cache_info_write   = '0;
+        cache_info_we      = 1'b0;
 
         cache_evicted_data = cache_line;
-        evicted_addr = {cache_info.tag, requested_line, requested_block, 2'b0};
-        if (cache_load == 2'b01) begin
-            cache_wdata[127:0] = cache_load_data;
-            cache_wbe[15:0]    = '1;
-        end else if (cache_load == 2'b10) begin
-            cache_wdata[255:128] = cache_load_data;
-            cache_wbe[31:16]     = '1;
-        end else if (wr_en && !miss) begin
-            for (int i = 0; i < 8; i++) cache_wdata[i*32+:32] = wr_data;
-            cache_wbe[requested_block*4+:4] = byte_en;
-        end
+        evicted_addr       = {cache_info.tag, requested_line, requested_block, 2'b0};
+
+        unique case (cache_load)
+            2'b01: begin
+                cache_wdata[127:0] = cache_load_data;
+                cache_wbe[15:0]    = '1;
+            end
+            2'b10: begin
+                cache_info_write.tag   = tag;
+                cache_info_write.dirty = 1'b0;
+                cache_info_write.valid = 1'b1;
+                cache_info_we          = 1'b1;
+                cache_wdata[255:128]   = cache_load_data;
+                cache_wbe[31:16]       = '1;
+            end
+            default: begin
+                if (wr_en && !miss && cache_state == CACHE_LOOKUP) begin
+                    for (int i = 0; i < 8; i++) cache_wdata[i*32+:32] = wr_data;
+                    cache_wbe[requested_block*4+:4] = byte_en;
+                end
+            end
+        endcase
     end
 
+    // -------------------------------------------------------------------------
+    // Data BRAM — canonical byte-write template (UG901)
+    //   * Unconditional registered read
+    //   * Per-byte conditional write
+    //   * NO reset on cache_line — it's the BRAM output register
+    // -------------------------------------------------------------------------
+    always_ff @(posedge clk) begin
+        for (int i = 0; i < 32; i++) begin
+            if (cache_wbe[i])
+                cache[requested_line][i*8+:8] <= cache_wdata[i*8+:8];
+        end
+        cache_line <= cache[requested_line];
+    end
+
+    // -------------------------------------------------------------------------
+    // Tag BRAM — same template
+    // -------------------------------------------------------------------------
+    always_ff @(posedge clk) begin
+        if (cache_info_we)
+            cache_info_bram[requested_line] <= cache_info_write;
+        cache_info <= tag_entry_t'(cache_info_bram[requested_line]);
+    end
+
+    // -------------------------------------------------------------------------
+    // FSM (no BRAM signals reset here)
+    // -------------------------------------------------------------------------
     always_ff @(posedge clk) begin
         if (!rst_n) begin
-            requested_block_q <= 0;
-            cache_line <= '0;
-            cache_state <= CACHE_OFF;
-            prev_requested_line <= '0;
-            cache_info <= '0;
+            cache_state       <= CACHE_OFF;
+            requested_block_q <= '0;
         end else begin
             requested_block_q <= requested_block;
             case (cache_state)
-                CACHE_OFF:
-                if (rd_en || wr_en) begin
-                    cache_state <= CACHE_LOOKUP;
-                    cache_info <= cache_info_q[requested_line];
-                    prev_requested_line <= requested_line;
+                CACHE_OFF: begin
+                    if (rd_en || wr_en) cache_state <= CACHE_LOOKUP;
                 end
                 CACHE_LOOKUP: begin
-                    // If it's valid, perform action
-                    // I invalid, go into refill actions
-                    if (cache_info.valid && !miss) begin
-                        cache_state <= CACHE_ACCESS;
-                        cache_line  <= cache[requested_line];
-                        if (wr_en) cache_info_q[requested_line].dirty <= 1'b1;
-                    end else begin
-                        cache_state <= CACHE_REFILL;
-                    end
+                    if (cache_info.valid && !miss) cache_state <= CACHE_ACCESS;
+                    else                           cache_state <= CACHE_REFILL;
                 end
-                CACHE_ACCESS:
-                if ((rd_en) && consecutive_read) begin
-                    // Since the exposed line is requested, we can continue with serving data
-                    cache_state <= CACHE_ACCESS;
-                end else cache_state <= CACHE_OFF;
+                CACHE_ACCESS: cache_state <= CACHE_OFF;
                 CACHE_REFILL: begin
-                    if (cache_load != 2'b00) begin
-                        if (cache_load == 2'b10) begin
-                            cache_info_q[requested_line].valid <= 1'b1;
-                            cache_info.valid <= 1'b1;
-                            cache_info_q[requested_line].dirty <= 1'b0;
-                            cache_info.dirty <= 1'b0;
-                            cache_info_q[requested_line].tag <= tag;
-                            cache_info.tag <= tag;
-                            // Exit refill state
-                            cache_state <= CACHE_LOOKUP;
-                        end
-                    end
+                    // Exit refill once the upper half + tag have been written
+                    if (cache_load == 2'b10) cache_state <= CACHE_LOOKUP;
                 end
-                default: ;
+                default: cache_state <= CACHE_OFF;
             endcase
-
-            if (wr_en) cache_info_q[requested_line].dirty <= 1'b1;
-
-            // Handle BRAM write-byte-enable
-            for (int i = 0; i < 32; i++)
-            if (cache_wbe[i]) cache[requested_line][i*8+:8] <= cache_wdata[i*8+:8];
-
         end
-
     end
+
     assign rd_data = cache_line[requested_block_q*32+:32];
+
 endmodule

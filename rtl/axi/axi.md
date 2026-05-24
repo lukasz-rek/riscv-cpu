@@ -13,13 +13,9 @@ Tag bits:    17
 Index bits:  10
 Offset bits: 5
 ```
-This adds up to 32KB per cache, all in BRAM. The management data is also stored in BRAM for better resource utilization, though this necessitates an additional cycle for valid bit lookup, after which the data can be served on the cycle after that. The cache will near always assert a stall signal, and only when a lookup has been done and the bit is valid will it go low, outputting data on the cycle after it. This roughly means that. 
+This adds up to 32KB per cache, all in BRAM. The management data is also stored in BRAM for better resource utilization, though this necessitates an additional cycle for valid bit lookup, after which the data can be served on the cycle after that. So for a cache access we need to pull relevant control bits (check if everything's ok), then fetch data for subsequent cycle. For speedup, we keep the most recent control bits as then we can just give data immediately on next access.
 
-Cycle 0: ADDR, RD_EN | WR_EN, DATA
 
-Cycle 1: If miss && stall == 0, then valid operation on next cycle. Else it is a miss and we need to start refill actions. If stall is high, still waiting.
-
-Cycle 2: Valid data shown
 
 ## AXI Master Behaviour
 

@@ -115,15 +115,18 @@ int main(void) {
     // uart_puts("After ebreak (returned via mret)\r\n");
 
     // Arm timer before enabling interrupts
-    write_timecmp(read_mtime() + TIMER_INTERVAL);
+    // write_timecmp(read_mtime() + TIMER_INTERVAL);
 
-    uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
-    uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
-    uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
+    // uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
+    // uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
+    // uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
 
     secs = 0;
-    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
-    __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
+    // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    // __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
+
+    uart_putc('a');
+    uart_puts("elemel\n");
 
     asm volatile("nop");
     asm volatile("nop");
@@ -144,13 +147,13 @@ int main(void) {
     //     : "+r"(p)
     //     :: "t0"
     // );
-    static uint32_t dst[2];
-    asm volatile (
-        "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
-        "sw t0, 0(%0)"
-        : "+r"(dst)
-        :: "memory"
-    );
+    // static uint32_t dst[2];
+    // asm volatile (
+        // "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
+        // "sw t0, 0(%0)"
+        // : "+r"(dst)
+        // :: "memory"
+    // );
     while(1) {
         asm volatile("nop");
     }
