@@ -60,8 +60,7 @@ module axi_cache #(
     (* ram_style = "block" *) logic [TAG_BITS+1:0]  cache_info [NUM_SETS]; // {TAG, VALID, DIRTY}
 
     // Raw BRAM outputs — these regs have EXACTLY ONE driver so they map
-    // onto the BRAM primitive's internal output flop. Do not add any
-    // other assignments to these. Bypass happens outside the BRAM.
+    // onto the BRAM primitive's internal output flop.
     logic       [255:0] cache_line_raw;
     tag_entry_t         current_cache_info_raw;
 
