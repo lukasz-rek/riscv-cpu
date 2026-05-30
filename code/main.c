@@ -21,8 +21,13 @@
 #define LSR_THRE  (1 << 5)
 #define LSR_DR    (1 << 0)
 
-#define UART_DIVISOR 43
-#define TIMER_INTERVAL 4297
+#define UART_BAUD           115200
+#define UART_DIVISOR_BAUD(freq, baud)  (((freq) + (16 * (baud)) / 2) / (16 * (baud)))
+#define EE_TICKS_PER_SEC           100000000
+
+#define UART_DIVISOR  UART_DIVISOR_BAUD(EE_TICKS_PER_SEC, UART_BAUD)
+
+#define TIMER_INTERVAL 100000000
 
 void uart_init(void) {
     UART_LCR = LCR_DLAB;
@@ -118,32 +123,32 @@ int main(void) {
     uart_init();
     trap_init();
 
-    uart_putc('\n');
+    // uart_putc('\n');
 
-    print_5();
-    uart_putc('\n');
+    // print_5();
+    // uart_putc('\n');
 
 
-    *(volatile uint32_t *)0x80000430 = 0x00d00513u;
+    // *(volatile uint32_t *)0x80000438 = 0x00d00513u;
 
-    __asm__ volatile ("fence.i" ::: "memory");
+    __asm__ volatile ("wfi");
 
-    print_5();
+    // print_5();
 
     // uart_puts("Before ebreak\r\n");
     // __asm__ volatile ("ebreak");
     // uart_puts("After ebreak (returned via mret)\r\n");
 
     // Arm timer before enabling interrupts
-    // write_timecmp(read_mtime() + TIMER_INTERVAL);
+    write_timecmp(read_mtime() + TIMER_INTERVAL);
 
-    // uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
-    // uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
-    // uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
+    uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
+    uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
+    uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
 
-    // secs = 0;
-    // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
-    // __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
+    secs = 0;
+    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
 
     // uart_putc('a');
     // uart_puts("elemel\n");
