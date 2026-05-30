@@ -82,9 +82,11 @@ package core_pkg;
         // CSR stuff
         OP_SYSTEM = 7'b1110011,
 
-        OP_LUI  = 7'b0110111,
-        OP_AUI  = 7'b0010111,
-        OP_FENC = 7'b0001111
+        // FENCE
+        OP_MISC_MEM = 7'b0001111,
+
+        OP_LUI = 7'b0110111,
+        OP_AUI = 7'b0010111
     } opcode_t;
 
     typedef enum logic [2:0] {
@@ -154,6 +156,8 @@ package core_pkg;
         logic rs1_forward_exec;
         logic rs2_forward_exec;
         logic mem_forward_exec;
+
+        logic flush_I;
 
 
         // Alu

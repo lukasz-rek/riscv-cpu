@@ -132,6 +132,8 @@ module csr_regfile (
                     mstatus_temp = mstatus_t'(csr_wr_data);
 
                     mstatus.mie  = mstatus_temp.mie;
+                    mstatus.mpie = mstatus_temp.mpie;
+                    mstatus.mpp  = mstatus_temp.mpp;
                 end
                 12'h301: csr_rd_data = MISA_VALUE;
                 12'h304: begin
@@ -152,14 +154,23 @@ module csr_regfile (
                     csr_rd_data = mstatush;
                 end
                 // Machine Trap Handling
-                12'h340: csr_rd_data = mscratch_q;
+                12'h340: begin
+                    csr_rd_data = mscratch_q;
+                    mscratch = mscratch_t'(csr_wr_data);
+                end
                 12'h341: begin
                     csr_rd_data = mepc_q;
 
                     mepc = csr_wr_data;
                 end
-                12'h342: csr_rd_data = mcause_q;
-                12'h343: csr_rd_data = mtval_q;
+                12'h342: begin
+                    csr_rd_data = mcause_q;
+                    mcause = mcause_t'(csr_wr_data);
+                end
+                12'h343: begin
+                    csr_rd_data = mtval_q;
+                    mtval = mtval_t'(csr_wr_data);
+                end
                 12'h344: csr_rd_data = mip_q;
                 // Machine Counters/Timers
                 12'hC00, 12'hC01: csr_rd_data = mcycle[31:0];

@@ -28,6 +28,8 @@ module top #(
     logic stall_D;
     logic stall_I;
 
+    logic flush_I;
+
     logic mtime_isr;
 
     core cpu (
@@ -44,6 +46,7 @@ module top #(
         .stall_D(stall_D),
         .rd_en_d(rd_en_d),
         .rd_en_i(rd_en_i),
+        .flush_I(flush_I),
 
         .mtime_isr(mtime_isr)
     );
@@ -89,6 +92,7 @@ module top #(
         .rd_data_d(rd_data_d),
         .stall_I  (stall_I),
         .stall_D  (stall_D),
+        .flush_I  (flush_I),
         .m_axi    (m_axi)
     );
 

@@ -21,8 +21,13 @@
 #define LSR_THRE  (1 << 5)
 #define LSR_DR    (1 << 0)
 
-#define UART_DIVISOR 43
-#define TIMER_INTERVAL 4297
+#define UART_BAUD           115200
+#define UART_DIVISOR_BAUD(freq, baud)  (((freq) + (16 * (baud)) / 2) / (16 * (baud)))
+#define EE_TICKS_PER_SEC           100000000
+
+#define UART_DIVISOR  UART_DIVISOR_BAUD(EE_TICKS_PER_SEC, UART_BAUD)
+
+#define TIMER_INTERVAL 100000000
 
 void uart_init(void) {
     UART_LCR = LCR_DLAB;
@@ -106,9 +111,29 @@ void trap_init(void) {
     );
 }
 
+void print_5(void) {
+    print_hex(0x5);
+}
+
+void print_D(void) {
+    print_hex(0xD);
+}
+
 int main(void) {
     uart_init();
     trap_init();
+
+    // uart_putc('\n');
+
+    // print_5();
+    // uart_putc('\n');
+
+
+    // *(volatile uint32_t *)0x80000438 = 0x00d00513u;
+
+    __asm__ volatile ("wfi");
+
+    // print_5();
 
     // uart_puts("Before ebreak\r\n");
     // __asm__ volatile ("ebreak");
@@ -125,9 +150,12 @@ int main(void) {
     __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
     __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
 
-    asm volatile("nop");
-    asm volatile("nop");
-    asm volatile("nop");
+    // uart_putc('a');
+    // uart_puts("elemel\n");
+
+    // asm volatile("nop");
+    // asm volatile("nop");
+    // asm volatile("nop");
     // asm volatile("ebreak");
     // asm volatile (
     //     "li t0, 0x80000002\n\t"
@@ -144,13 +172,13 @@ int main(void) {
     //     : "+r"(p)
     //     :: "t0"
     // );
-    static uint32_t dst[2];
-    asm volatile (
-        "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
-        "sw t0, 0(%0)"
-        : "+r"(dst)
-        :: "memory"
-    );
+    // static uint32_t dst[2];
+    // asm volatile (
+        // "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
+        // "sw t0, 0(%0)"
+        // : "+r"(dst)
+        // :: "memory"
+    // );
     while(1) {
         asm volatile("nop");
     }

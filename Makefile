@@ -38,6 +38,13 @@ vivado:
 	@echo "Starting build"
 	@vivado_batch build.tcl
 
+cpp_run:
+	@mkdir -p logs build/$(TOP_MODULE_NAME)_tb
+	@verilator $(VERILATOR_FLAGS) --cc $(RTL_FILES) tb/cpp_tb/$(TOP_MODULE_NAME)_tb.cpp \
+		--exe --build -j 0 -Mdir build/$(TOP_MODULE_NAME)_tb \
+		--top-module $(TOP_MODULE_NAME)
+	@./build/$(TOP_MODULE_NAME)_tb/V$(TOP_MODULE_NAME)
+
 code:
 	@$(MAKE) -C code all
 
@@ -56,7 +63,7 @@ lint:
 
 wave:
 	@echo "Opening waveform"
-	@surfer logs/$(TOP_MODULE_NAME).fst -s logs/$(TOP_MODULE_NAME).surf.ron
+	@surfer logs/$(TOP_MODULE_NAME).fst -s logs/$(TOP_MODULE_NAME) &!
 
 bitstream: $(BIN_FILE)
 	scp $(BIN_FILE) kria:~/bitstreams/bitstream.bit.bin
@@ -73,4 +80,4 @@ clean:
 	@rm -r build
 	@echo "Cleaned"
 
-.PHONY: build clean run lint code wave
+.PHONY: build clean run lint code wave cpp_run

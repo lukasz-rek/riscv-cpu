@@ -96,6 +96,16 @@ module axi_master_tb;
 
     axi_test_axi_vip_0_0_slv_mem_t slv_agent;
 
+    task automatic check(input logic cond, input string msg);
+        if (!cond) begin
+            longint unsigned fail_time;
+            fail_time = $time;
+            repeat(1) @(posedge clk);
+            $error("Assert failed at t=%0t: %s", fail_time, msg);
+            $finish;
+        end
+    endtask
+
     initial begin
         slv_agent = new("slv_agent", vip_inst.axi_test_i.axi_vip_0.inst.IF);
         slv_agent.start_slave();
@@ -109,22 +119,22 @@ module axi_master_tb;
         //   offset 0x10: 0x55555555
         //   ...
         slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0000,
+            36'h8_C000_0000,
             128'h44444444_33333333_22222222_DEADBEEF,
             16'hFFFF
         );
         slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0010,
+            36'h8_C000_0010,
             128'h88888888_77777777_66666666_55555555,
             16'hFFFF
         );
         slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_4000,
+            36'h8_C000_8000,
             128'hABCDABCD_BCDADBCA_CCDDDDCC_AABBBBAA,
             16'hFFFF
         );
         slv_agent.mem_model.backdoor_memory_write(
-            36'h8_4000_0040,
+            36'h8_C000_0040,
             128'hFEFEFEFE_CDCDCDCD_0F0F0F0F_ACACACAC,
             16'hFFFF
         );
@@ -132,101 +142,126 @@ module axi_master_tb;
 
 
         addr_d  = 32'h0;
+        addr_i = '0;
         rd_en_d = 1'b0;
+        rd_en_i = 1'b0;
+        wr_en = 1'b0;
 
         rst_n = 0;
         #500;
         rst_n = 1;
         $display("[TB] Reset released at %0t", $time);
 
-        // Issue a read at address 0x0
+        $display("Checking D reads");
         @(negedge clk);
-        addr_d  <= 32'h0000_0000;
-        rd_en_d <= 1'b1;
+        addr_d  = 32'h8000_0000;
+        rd_en_d = 1'b1;
         #1; // Delay moment for stall_D to actually propagate
 
+        check(stall_D == 1, "Stall high on start of first read");
         // Wait for the miss to be serviced
         while (stall_D) @(negedge clk);
-
+        @(negedge clk);
 
         $display("[TB] rd_data_d = 0x%08h (expected 0xDEADBEEF)", rd_data_d);
-        rd_en_d <= 1'b0;
-
-        @(negedge clk);
-        rd_en_d <= 1'b1;
-        addr_d  <= 32'h0000_000C;
-
-        @(negedge clk);
-        $display("[TB] rd_data_d = 0x%08h (expected 0x44444444)", rd_data_d);
-        rd_en_d <= 1'b0;
-
-        // Now just do a write, later verify it was modified
-        @(negedge clk);
-        wr_en <= 1'b1;
-        wr_data <= 32'hABCD_DCBA;
-        byte_en <= '1;
-
-        @(negedge clk);
-        wr_en <= 1'b0;
-        rd_en_d <= 1'b1;
-
-        @(negedge clk);
-        $display("[TB] rd_data_d = 0x%08h (expected 0xABCDDBCA)", rd_data_d);
-        // Now start doing reads that evict previous line and verify it got written to AXI
-        addr_d <= 32'h0000_4000;
+        check(rd_data_d == 32'hDEADBEEF, "Diff data expected on first read");
+        addr_d  = 32'h8000_000C;
         #1;
+        check(stall_D == 0, "Stall high on start of second read despite cache line still hot");
 
-        assert(stall_D == 1);
-        assert(dut.dirty_evict_d == 1);
+        while (stall_D) @(negedge clk);
+        @(negedge clk);
 
-        while (stall_D) @(negedge clk); // Should have gotten written
-        $display("[TB] rd_data_d = 0x%08h (expected 0xAABBBBAA)", rd_data_d);
+        check(rd_data_d == 32'h4444_4444, "Wrong data on second read");
+        rd_en_d = 1'b0;
+
+        @(negedge clk);
+        $display("Checking D RAW");
+        // Now just do a write, later verify it was modified
+        wr_en = 1'b1;
+        wr_data = 32'hABCD_DCBA;
+        byte_en = '1;
+        #1;
+        check(stall_D == 0, "Stall high on write despite line hot");
+
+        while (stall_D) @(negedge clk);
+        @(negedge clk);
+        wr_en = 1'b0;
+        rd_en_d = 1'b1;
+        #1;
+        check(stall_D == 0, "Stall low on read after write");
+        while (stall_D) @(negedge clk);
+        @(negedge clk);
+
+        check(rd_data_d == 32'hABCD_DCBA, "Wrong data on RAW");
+        $display("Checking D eviction");
+
+        // Now start doing reads that evict previous line and verify it got written to AXI
+        addr_d = 32'h8000_8000;
+
+        #1;
+        check(stall_D == 1, "Stall on eviction read");
+
+        while (stall_D) @(negedge clk);
+        @(negedge clk);
 
 
-        evicted_line = slv_agent.mem_model.backdoor_memory_read(36'h8_4000_0000);
+        check(rd_data_d == 32'hAABB_BBAA, "Incorrect data after eviction");
+
+        evicted_line = slv_agent.mem_model.backdoor_memory_read(36'h8_c000_0000);
         assert(evicted_line[127:96] === 32'hABCD_DCBA)
             else $error("[TB] Eviction mismatch: got 0x%08h", evicted_line[127:96]);
 
+
+        $display("Checking D + I concurrent access");
         // Now let's test that doing reads on i cache works
-        rd_en_d <= 0;
-        rd_en_i <= 1;
-        addr_i <= 32'h0000_0040;
+        rd_en_d = 0;
+        rd_en_i = 1;
+        addr_i = 32'h8000_0040;
 
         #1;
-        assert(stall_I == 1)
-            else $error("I stall not asserted");
+
+        check(stall_I == 1, "I stall not asserted on read");
+        check(stall_D == 0, "D stall asserted on I-only read");
 
         while(stall_I) @(negedge clk);
+        @(negedge clk);
 
-        $display("[TB] rd_data_i = 0x%08h (expected 0xACACACAC)", rd_data_i);
+        check(rd_data_i == 32'hACAC_ACAC, "I data not correct");
+
+        @(negedge clk);
         // And that missing on both prioritizes I and doesn't mess anything up
-        rd_en_d <= 1;
-        addr_i <= 32'h0000_0000;
-        addr_d <= 32'h0000_0000;
+        rd_en_d = 1;
+        addr_i = 32'h8000_0000;
+        addr_d = 32'h8000_0000;
         #1;
 
-        assert(stall_I == 1)
-            else $error("I stall not asserted");
+        check(stall_I == 1, "I stall not asserted on multi read");
+        check(stall_D == 1, "D stall not asserted on multi read");
 
-        assert(stall_D == 1)
-            else $error("D stall not asserted");
         // First I stall gets serviced
         while(stall_I) @(negedge clk);
-        rd_en_i <= 0;
-        $display("[TB] rd_data_i = 0x%08h (expected 0xDEADBEEF)", rd_data_i);
+        @(negedge clk);
+
+        rd_en_i = 0;
+        check(rd_data_i == 32'hDEAD_BEEF, "I data diff on mutli read");
+        check(stall_D == 1, "D stall went low during multi read");
 
         while(stall_D) @(negedge clk);
-        rd_en_d <= 0;
-        $display("[TB] rd_data_d = 0x%08h (expected 0xDEADBEEF)", rd_data_d);
+        @(negedge clk);
 
-        #1000;
+        rd_en_d = 0;
+        check(rd_data_d == 32'hDEAD_BEEF, "D data diff on mutli read");
+
+        #1;
+        $display("All tests passed!");
         $finish;
     end
 
     // Timeout
     initial begin
-        #2_000_000;
-        $display("[TB] TIMEOUT");
+        #40_000;
+        $error("[TB] TIMEOUT");
         $finish;
     end
 

@@ -13,12 +13,15 @@ module mem (
     output logic [ 3:0] mem_byte_en,
     output logic        mem_enable,
 
+    output logic flush_I,
+
     input logic stall_D,
     output ctrl_signals_t out_ctrl_signals
 );
 
 
     always_comb begin
+        flush_I = in_ctrl_signals.flush_I;
         mem_addr2   = (in_ctrl_signals.mem_wr_en) ? in_ctrl_signals.mem_wr_addr : in_ctrl_signals.mem_addr2;
         mem_wr_en = in_ctrl_signals.mem_wr_en;
         mem_wr_data = in_ctrl_signals.mem_wr_data;
