@@ -28,6 +28,11 @@ module axi_cache #(
     input logic [  1:0] cache_load,
     input logic [127:0] cache_load_data, // AXI can only supply 4 words per transaction
 
+    // Flush handling
+    input logic clear_dirty,
+    input logic clear_valid,
+    input logic flush,
+
     output logic [DATA_WIDTH-1:0] rd_data,
     output logic                  stall,
     output logic                  miss,
@@ -56,33 +61,33 @@ module axi_cache #(
     // -------------------------------------------------------------------------
     // BRAM storage arrays
     // -------------------------------------------------------------------------
-    (* ram_style = "block" *) logic [255:0]         cache      [NUM_SETS];
-    (* ram_style = "block" *) logic [TAG_BITS+1:0]  cache_info [NUM_SETS]; // {TAG, VALID, DIRTY}
+    (* ram_style = "block" *)logic       [         255:0] cache                   [NUM_SETS];
+    (* ram_style = "block" *)logic       [  TAG_BITS+1:0] cache_info              [NUM_SETS];  // {TAG, VALID, DIRTY}
 
     // Raw BRAM outputs — these regs have EXACTLY ONE driver so they map
     // onto the BRAM primitive's internal output flop.
-    logic       [255:0] cache_line_raw;
-    tag_entry_t         current_cache_info_raw;
+    logic       [         255:0] cache_line_raw;
+    tag_entry_t                  current_cache_info_raw;
 
     // Post-bypass versions used everywhere else in the module
-    logic       [255:0] cache_line;
-    tag_entry_t         current_cache_info;
+    logic       [         255:0] cache_line;
+    tag_entry_t                  current_cache_info;
 
-    logic       [INDEX_BITS-1:0]   current_cache_info_line;
+    logic       [INDEX_BITS-1:0] current_cache_info_line;
 
     // Write-side combinational nets
-    logic       [       255:0] cache_wdata;
-    logic       [        31:0] cache_wbe;
-    tag_entry_t                cache_info_write;
-    logic                      cache_info_we;
+    logic       [         255:0] cache_wdata;
+    logic       [          31:0] cache_wbe;
+    tag_entry_t                  cache_info_write;
+    logic                        cache_info_we;
 
     // Registered copies of the previous-cycle write request — used to bypass
     // the BRAM read-first behavior when the line we're reading was just written.
-    logic       [255:0]            cache_wdata_q;
-    logic       [31:0]             cache_wbe_q;
-    logic       [INDEX_BITS-1:0]   write_line_q;
-    tag_entry_t                    cache_info_write_q;
-    logic                          cache_info_we_q;
+    logic       [         255:0] cache_wdata_q;
+    logic       [          31:0] cache_wbe_q;
+    logic       [INDEX_BITS-1:0] write_line_q;
+    tag_entry_t                  cache_info_write_q;
+    logic                        cache_info_we_q;
 
     initial begin
         for (int i = 0; i < NUM_SETS; i++) cache[i] = '0;
@@ -98,14 +103,14 @@ module axi_cache #(
     logic [OFFSET_BITS-3:0] requested_block_q;   // needed for masking on access due to BRAM pattern
 
     assign requested_block = addr[2+:OFFSET_BITS-2];
-    assign requested_line  = addr[OFFSET_BITS+:INDEX_BITS];
-    assign requested_tag   = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
+    assign requested_line = addr[OFFSET_BITS+:INDEX_BITS];
+    assign requested_tag = addr[OFFSET_BITS+INDEX_BITS+:TAG_BITS];
 
     // -------------------------------------------------------------------------
     // Control / status outputs
     // -------------------------------------------------------------------------
-    assign stall       = (rd_en || wr_en) && (requested_line != current_cache_info_line);
-    assign miss        = (rd_en || wr_en) && (requested_tag != current_cache_info.tag || !current_cache_info.valid);
+    assign stall = (rd_en || wr_en || flush) && (requested_line != current_cache_info_line);
+    assign miss        = (rd_en || wr_en || flush) && (requested_tag != current_cache_info.tag || !current_cache_info.valid);
     assign dirty_evict = miss && current_cache_info.dirty;
 
     // -------------------------------------------------------------------------
@@ -136,7 +141,13 @@ module axi_cache #(
                 cache_wbe[31:16]       = '1;
             end
             default: begin
-                if (wr_en && !miss) begin
+                if (clear_dirty) begin
+                    cache_info_we = 1'b1;
+                    cache_info_write.dirty = 1'b0;
+                end else if (clear_valid) begin
+                    cache_info_we = 1'b1;
+                    cache_info_write.valid = 1'b0;
+                end else if (wr_en && !miss) begin
                     for (int i = 0; i < 8; i++) cache_wdata[i*32+:32] = wr_data;
                     cache_wbe[requested_block*4+:4] = byte_en;
                     cache_info_we                   = 1'b1;
@@ -211,7 +222,7 @@ module axi_cache #(
     // -------------------------------------------------------------------------
     always_ff @(posedge clk) begin
         if (!rst_n) requested_block_q <= '0;
-        else        requested_block_q <= requested_block;
+        else requested_block_q <= requested_block;
     end
 
     assign rd_data = cache_line[requested_block_q*32+:32];

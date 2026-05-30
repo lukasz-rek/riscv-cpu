@@ -29,13 +29,6 @@ module decode (
     output ctrl_signals_t ctrl_signals,
     output logic freeze,
 
-    // Trap handling
-    // output logic trap_en,
-    // output isr_cause_t trap_cause,
-    // output logic [31:0] trap_pc,
-    // output logic [31:0] trap_val,
-    // output logic mret_en,
-
     input logic trap_stall,
     input logic trap_taken,
     input logic [31:0] trap_target,
@@ -336,8 +329,14 @@ module decode (
                             default: illegal_instr(temp_signals);
                         endcase
                     end
-
-
+                end
+                OP_MISC_MEM: begin
+                    if (funct3 == 3'b000) begin
+                        // No-op, single hart so no care for cache-D coherency
+                    end else if (funct3 == 3'b001) begin
+                        // Initiate write-back of D cache dirty, invalidate all I
+                        temp_signals.flush_I = 1'b1;
+                    end else illegal_instr(temp_signals);
                 end
                 default: illegal_instr(temp_signals);
             endcase

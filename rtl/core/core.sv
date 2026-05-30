@@ -12,6 +12,8 @@ module core (
     input logic        stall_I,
     input logic        stall_D,
 
+    output logic flush_I,
+
     output logic        rd_en_d,
     output logic        rd_en_i,
     output logic [31:0] mem_addr1,
@@ -231,6 +233,7 @@ module core (
         .mem_byte_en(mem_byte_en),
         .mem_enable(rd_en_d),
         .stall_D(stall_D),
+        .flush_I(flush_I),
 
         .out_ctrl_signals(mem_rf_ctrl)
     );

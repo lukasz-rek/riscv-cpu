@@ -106,31 +106,51 @@ void trap_init(void) {
     );
 }
 
+void print_5(void) {
+    print_hex(0x5);
+}
+
+void print_D(void) {
+    print_hex(0xD);
+}
+
 int main(void) {
     uart_init();
     trap_init();
+
+    uart_putc('\n');
+
+    print_5();
+    uart_putc('\n');
+
+
+    *(volatile uint32_t *)0x80000430 = 0x00d00513u;
+
+    __asm__ volatile ("fence.i" ::: "memory");
+
+    print_5();
 
     // uart_puts("Before ebreak\r\n");
     // __asm__ volatile ("ebreak");
     // uart_puts("After ebreak (returned via mret)\r\n");
 
     // Arm timer before enabling interrupts
-    write_timecmp(read_mtime() + TIMER_INTERVAL);
+    // write_timecmp(read_mtime() + TIMER_INTERVAL);
 
-    uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
-    uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
-    uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
+    // uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
+    // uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
+    // uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
 
-    secs = 0;
-    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
-    __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
+    // secs = 0;
+    // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    // __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
 
     // uart_putc('a');
     // uart_puts("elemel\n");
 
-    asm volatile("nop");
-    asm volatile("nop");
-    asm volatile("nop");
+    // asm volatile("nop");
+    // asm volatile("nop");
+    // asm volatile("nop");
     // asm volatile("ebreak");
     // asm volatile (
     //     "li t0, 0x80000002\n\t"
