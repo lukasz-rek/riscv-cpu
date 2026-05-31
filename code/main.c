@@ -30,7 +30,7 @@
 
 #define UART_DIVISOR  UART_DIVISOR_BAUD(EE_TICKS_PER_SEC, UART_BAUD)
 
-#define TIMER_INTERVAL 100000000
+#define TIMER_INTERVAL 4500
 
 void uart_init(void) {
     UART_LCR = LCR_DLAB;
@@ -135,10 +135,9 @@ int main(void) {
     uart_puts("echo ready\r\n");
         __asm__ volatile ("li t0, 0x800; csrs mie, t0");  // MEIE = mie[11]
         __asm__ volatile ("csrsi mstatus, 0x8");           // MIE
-        while (1) {
-            __asm__ volatile ("nop");
-        }
-    // Arm timer before enabling interrupts
+
+
+        // Arm timer before enabling interrupts
     // write_timecmp(read_mtime() + TIMER_INTERVAL);
 
     // uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
@@ -148,7 +147,13 @@ int main(void) {
     // secs = 0;
     // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
     // __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
-
+    static uint32_t dst[2];
+        asm volatile (
+            "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
+            "sw t0, 0(%0)"
+            : "+r"(dst)
+            :: "memory"
+        );
 
 
     while(1) {

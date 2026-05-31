@@ -2,7 +2,7 @@ CC      = riscv64-elf-gcc
 OBJCOPY = riscv64-elf-objcopy
 CFLAGS  = -march=rv32im_zicntr -mabi=ilp32 -nostdlib -ffreestanding -O3 \
           -I. \
-          -DPERFORMANCE_RUN=1 -DITERATIONS=1 -DFLAGS_STR=\"-O3\"
+          -DPERFORMANCE_RUN=1 -DITERATIONS=3000 -DFLAGS_STR=\"-O3\"
 LDFLAGS = -T ../linker.ld
 
 

@@ -16,33 +16,33 @@ Stuff still to be done before linux ready:
 
 See [Benchmarks](docs/benchmarks.md) for whole progress, but this is latest results:
 
-100 MHz, riscv32im, pipelined with access to 1GB DDR over AXI, 2 32 KB I and D caches.
+125 MHz, riscv32im, pipelined with access to 1GB DDR over AXI, 2 32 KB I and D caches.
 Supports a timer ISR, selected traps and 16550 UART. 
 
 Runs Zephyr, though not yet with UART ISRs but most examples work nicely. I'll add soc/board config files soon.
 
 It's also passing the riscv ISA [tests](https://github.com/riscv/riscv-arch-test) for I and M extensions.
-<!--```
-Starting coremark                                                                                       
-2K performance run parameters for coremark.                                                             
-CoreMark Size    : 666                                                                                  
-Total ticks      : 1071168869                                                                           
-Total time (secs): 13                                                                                   
-Iterations/Sec   : 184                                                                                  
-Iterations       : 2400                                                                                 
-Compiler version : GCC15.2.0                                                                            
-Compiler flags   : -O3                                                                                  
-Memory location  : STACK                                                                                
-seedcrc          : 0xe9f5                                                                               
+```
+Starting coremark
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 1685332207
+Total time (secs): 13
+Iterations/Sec   : 230
+Iterations       : 3000
+Compiler version : GCC15.2.0
+Compiler flags   : -O3
+Memory location  : STACK
+seedcrc          : 0xe9f5
 [0]crclist       : 0xe714
 [0]crcmatrix     : 0x1fd7
 [0]crcstate      : 0x8e3a
-[0]crcfinal      : 0x382f
+[0]crcfinal      : 0xcc42
 Correct operation validated. See README.md for run and reporting rules.
 
-Got 1073835650 cycles and 703281515 instructions
-CPI: ~1.52
-```-->
+Got 1690360788 cycles and 904021454 instructions
+CPI: ~1.86
+```
 
 
 # Build

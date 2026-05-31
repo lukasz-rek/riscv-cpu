@@ -196,7 +196,7 @@ module csr_regfile (
             mstatus_q <= '0;
             mie_q <= '0;
         end else begin
-            mcycle   <= mcycle + 1;
+            mcycle <= mcycle + 1;
             mip_q <= mip;
             minstret <= (minstret_incr) ? minstret + 1 : minstret;
             if (trap_en) begin
