@@ -1,6 +1,7 @@
 module top_wrapper (
     input wire clk,
     input wire rst_n,
+    input wire uart_isr,
 
     // Flat AXI ports — BD sees these
     output wire [35:0] m_axi_awaddr,
@@ -107,9 +108,10 @@ module top_wrapper (
     assign axi_bus.rid     = m_axi_rid;
 
     top top_inst (
-        .clk  (clk),
+        .clk(clk),
         .rst_n(rst_n),
-        .m_axi(axi_bus)
+        .m_axi(axi_bus),
+        .uart_isr(uart_isr)
     );
 
 endmodule

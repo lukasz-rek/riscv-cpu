@@ -264,8 +264,8 @@ module axi_tb;
         // Spoof uart ready to write
         slv_agent.mem_model.backdoor_memory_write_4byte(32'h10000014, 32'h00000060, 4'hF);
 
-        // load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
-        load_hex("/home/luki/Projekty/cpu/code/zephyr.hex", 36'h8_4000_0000);
+        load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
+        // load_hex("/home/luki/Projekty/cpu/code/zephyr.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/logs/arch/I-add-00/I-add-00.hex", 36'h8_4000_0000);
 
@@ -276,7 +276,7 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #8_000_000;
+        #1_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;

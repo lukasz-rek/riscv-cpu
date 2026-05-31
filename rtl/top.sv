@@ -5,6 +5,7 @@ module top #(
 ) (
     input logic clk,
     input logic rst_n,
+    input logic uart_isr,
 
     axi_if.master m_axi
 );
@@ -48,7 +49,8 @@ module top #(
         .rd_en_i(rd_en_i),
         .flush_I(flush_I),
 
-        .mtime_isr(mtime_isr)
+        .mtime_isr(mtime_isr),
+        .uart_isr (uart_isr)
     );
 
     logic mmio_pass_rd_en;

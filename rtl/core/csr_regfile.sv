@@ -30,8 +30,8 @@ module csr_regfile (
     output logic trap_pending,
 
     // ISR signals
-    input logic mtime_isr
-
+    input logic mtime_isr,
+    input logic uart_isr
 );
 
     // Decode addr
@@ -85,13 +85,16 @@ module csr_regfile (
 
     assign isr_pending = mstatus_q.mie & ((mie_q & mip) != '0);
 
+    assign mip = (mip_t'(uart_isr) << 11) | (mip_t'(mtime_isr) << 7);
+
     // Handle isr/trap cause
     always_comb begin
         prioritised_isr_cause = HW_ERROR;
         trap_pending = isr_pending;
         if (isr_pending) begin
-            // trap_pending = 1;
-            if (mip[7]) prioritised_isr_cause = M_MACHINE_TIMER;
+            // Per spec it is MEI > MSI > MTI
+            if (mip[11]) prioritised_isr_cause = M_EXTERNAL_ISR;
+            else if (mip[7]) prioritised_isr_cause = M_MACHINE_TIMER;
             else prioritised_isr_cause = trap_cause;
         end else if (trap_taken) begin
             // trap_pending = 1;
@@ -108,8 +111,6 @@ module csr_regfile (
         mstatush = mstatus_q;
         mtvec = mtvec_q; mtvec_temp = '0;
         mie = mie_q;
-        mip = '0;
-        mip[7] = mtime_isr;
         mepc = mepc_q;
         mcause = mcause_q;
         mscratch = mscratch_q;
@@ -196,6 +197,7 @@ module csr_regfile (
             mie_q <= '0;
         end else begin
             mcycle   <= mcycle + 1;
+            mip_q <= mip;
             minstret <= (minstret_incr) ? minstret + 1 : minstret;
             if (trap_en) begin
                 mepc_q.pc <= trap_pc;
@@ -216,7 +218,6 @@ module csr_regfile (
                 mstatush_q <= mstatush;
                 mtvec_q <= mtvec;
                 mie_q <= mie;
-                mip_q <= mip;
                 mepc_q <= mepc;
                 mcause_q <= mcause;
                 mscratch_q <= mscratch;

@@ -77,6 +77,7 @@ package csr_pkg;
     typedef enum logic [31:0] {
         M_SOFTWARE_ISR = {CAUSE_ISR, 31'd3},
         M_MACHINE_TIMER = {CAUSE_ISR, 31'd7},
+        M_EXTERNAL_ISR = {CAUSE_ISR, 31'd11},
         INSTR_ADDR_MALIGN = {CAUSE_TRAP, 31'd0},
         INSTR_ACCESS_FAULT = {CAUSE_TRAP, 31'd1},
         ILLEGAL_INSTR = {CAUSE_TRAP, 31'd2},

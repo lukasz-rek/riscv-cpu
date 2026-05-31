@@ -23,7 +23,8 @@ module core (
     output logic [ 3:0] mem_byte_en,
 
     // ISRs
-    input logic mtime_isr
+    input logic mtime_isr,
+    input logic uart_isr
 );
 
 
@@ -130,7 +131,8 @@ module core (
         .trap_target (trap_target),
         .trap_pending(trap_pending),
 
-        .mtime_isr(mtime_isr)
+        .mtime_isr(mtime_isr),
+        .uart_isr (uart_isr)
     );
 
 
