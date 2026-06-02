@@ -33,6 +33,10 @@ module decode (
     input logic trap_taken,
     input logic [31:0] trap_target,
     input logic trap_pending,
+    // Registered redirect-in-flight from EXEC (exception / mret). Used to
+    // suppress same-cycle interrupt injection so it doesn't collide.
+    input logic exec_trap_en,
+    input logic exec_mret_en,
 
     output logic isr_en,
     output logic [31:0] isr_pc
@@ -87,7 +91,19 @@ module decode (
         isr_en = 0;
         isr_pc = '0;
 
-        if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
+        // Only inject an interrupt when decode holds a genuine, on-path
+        // resume point. Exclude:
+        //  - `flush`: decode currently holds a wrong-path branch/jalr shadow
+        //    whose PC must NOT be latched into mepc.
+        //  - `exec_trap_en`/`exec_mret_en`: a registered redirect from EXEC
+        //    (exception / mret) is committing in the CSR this cycle; injecting
+        //    here too would collide with it (corrupt mepc/mcause).
+        // (We guard on the exec-side registered signals rather than trap_taken
+        // because trap_taken combinationally includes isr_en itself -> a loop.)
+        // The interrupt stays pending (level) and is taken on the real next
+        // instruction a cycle later.
+        if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q
+                && !flush && !exec_trap_en && !exec_mret_en) begin
             isr_en = 1;
             isr_pc = instr_pc;
         end
@@ -105,7 +121,12 @@ module decode (
             next_pc_en = 1;
             next_pc = instr_pc;
             freeze = 1;
-        end else if (trap_taken || trap_pending) begin
+        end else if (trap_taken || isr_en) begin
+            // Redirect to the handler only when we actually committed the
+            // interrupt above (isr_en) or a registered trap/mret redirect is
+            // landing (trap_taken). Driving this off raw trap_pending would
+            // jump to the handler in cycles where isr_en was (correctly)
+            // suppressed, without the CSR ever recording the trap.
             next_pc_en = 1;
             next_pc = trap_target;
             trap_service = 1;

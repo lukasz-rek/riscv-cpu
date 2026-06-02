@@ -71,6 +71,7 @@ module csr_regfile (
     mtvec_t mtvec; mtvec_t mtvec_q; mtvec_t mtvec_temp;
     mie_t mie; mie_t mie_q;
     mip_t mip; mip_t mip_q;
+    mip_t eff_pending;
     mepc_t mepc; mepc_t mepc_q;
     mcause_t mcause; mcause_t mcause_q;
     mscratch_t mscratch; mscratch_t mscratch_q;
@@ -86,6 +87,7 @@ module csr_regfile (
     assign isr_pending = mstatus_q.mie & ((mie_q & mip) != '0);
 
     assign mip = (mip_t'(uart_isr) << 11) | (mip_t'(mtime_isr) << 7);
+    assign eff_pending = mie_q & mip;  // Enabled and pending
 
     // Handle isr/trap cause
     always_comb begin
@@ -93,11 +95,10 @@ module csr_regfile (
         trap_pending = isr_pending;
         if (isr_pending) begin
             // Per spec it is MEI > MSI > MTI
-            if (mip[11]) prioritised_isr_cause = M_EXTERNAL_ISR;
-            else if (mip[7]) prioritised_isr_cause = M_MACHINE_TIMER;
+            if (eff_pending[11]) prioritised_isr_cause = M_EXTERNAL_ISR;  // MEI
+            else if (eff_pending[7]) prioritised_isr_cause = M_MACHINE_TIMER;  // MTI
             else prioritised_isr_cause = trap_cause;
         end else if (trap_taken) begin
-            // trap_pending = 1;
             prioritised_isr_cause = trap_cause;
         end
     end
@@ -163,6 +164,7 @@ module csr_regfile (
                     csr_rd_data = mepc_q;
 
                     mepc = csr_wr_data;
+                    mepc[1:0] = 2'b00;
                 end
                 12'h342: begin
                     csr_rd_data = mcause_q;
@@ -194,7 +196,14 @@ module csr_regfile (
             minstret <= '0;
             privilege <= M_MODE;
             mstatus_q <= '0;
+            mstatush_q <= '0;
+            mtvec_q <= '0;
             mie_q <= '0;
+            mip_q <= '0;
+            mepc_q <= '0;
+            mcause_q <= '0;
+            mscratch_q <= '0;
+            mtval_q <= '0;
         end else begin
             mcycle <= mcycle + 1;
             mip_q <= mip;
