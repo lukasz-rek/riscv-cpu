@@ -33,10 +33,6 @@ module decode (
     input logic trap_taken,
     input logic [31:0] trap_target,
     input logic trap_pending,
-    // Registered redirect-in-flight from EXEC (exception / mret). Used to
-    // suppress same-cycle interrupt injection so it doesn't collide.
-    input logic exec_trap_en,
-    input logic exec_mret_en,
 
     output logic isr_en,
     output logic [31:0] isr_pc
@@ -102,10 +98,9 @@ module decode (
         // because trap_taken combinationally includes isr_en itself -> a loop.)
         // The interrupt stays pending (level) and is taken on the real next
         // instruction a cycle later.
-        if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q
-                && !flush && !exec_trap_en && !exec_mret_en) begin
+        if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
             isr_en = 1;
-            isr_pc = instr_pc;
+            isr_pc = (flush) ? flush_pc : instr_pc;
         end
 
         if (!valid) begin
@@ -142,7 +137,7 @@ module decode (
             temp_signals.rs1 = rs1;
             temp_signals.rs2 = rs2;
             temp_signals.opcode = opcode;
-
+            temp_signals.log_valid = 1;
 
             temp_signals.rd = rd;
             // $write("PC: %h, INSTR: %h\n", instr_pc, instr_data);
@@ -378,7 +373,7 @@ module decode (
         end else begin
 
             // If flush asserted, save latch values
-            if (flush) begin
+            if (flush && !isr_en) begin
                 flush_latch_q <= 1;
                 flush_pc_q <= flush_pc;
             end else if ((instr_pc == flush_pc_q) && valid) begin

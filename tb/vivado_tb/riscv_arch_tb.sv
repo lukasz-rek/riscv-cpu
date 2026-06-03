@@ -232,8 +232,6 @@ module riscv_arch_tb;
             hb_cnt         <= 0;
         end else begin
             if (mem_pc != last_unique_pc && mem_pc != 0) begin
-                $fwrite(trace_fd, "%0t  PC=%08h  INSTR=%08h\n",
-                        $time, mem_pc, mem_instr);
                 last_unique_pc <= mem_pc;
                 inst_cnt       <= inst_cnt + 1;
             end

@@ -53,9 +53,6 @@ module rf_writeback (
         end
         current_ctrl_signals = in_ctrl_signals;
         current_ctrl_signals.rf_wr_data = wr_data;
-        if (rf_wr_en) begin
-            // $write("PC: %h, Wrote %h to %d\n", current_ctrl_signals.pc, wr_data, wr_addr);
-        end
     end
 
 

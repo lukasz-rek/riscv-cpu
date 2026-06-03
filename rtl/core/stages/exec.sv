@@ -127,6 +127,7 @@ module exec (
         trap_cause_d = ILLEGAL_INSTR;
         trap_pc_d = '0;
         trap_val_d = '0;
+        csr_wr_data = 0;
 
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;

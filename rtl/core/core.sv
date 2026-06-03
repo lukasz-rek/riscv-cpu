@@ -175,8 +175,6 @@ module core (
         .trap_taken(trap_taken),
         .trap_target(trap_target),
         .trap_pending(trap_pending),
-        .exec_trap_en(trap_en),
-        .exec_mret_en(mret_en),
         .isr_pc(isr_pc),
         .isr_en(isr_en)
     );
