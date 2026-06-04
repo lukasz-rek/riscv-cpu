@@ -19,7 +19,7 @@ See [Benchmarks](docs/benchmarks.md) for whole progress, but this is latest resu
 125 MHz, riscv32im, pipelined with access to 1GB DDR over AXI, 2 32 KB I and D caches.
 Supports a timer ISR, selected traps and 16550 UART. 
 
-Runs Zephyr, though not yet with UART ISRs but most examples work nicely. I'll add soc/board config files soon.
+Runs Zephyr with the attached board/soc files. 
 
 It's also passing the riscv ISA [tests](https://github.com/riscv/riscv-arch-test) for I and M extensions.
 ```
@@ -69,5 +69,9 @@ make build TOP_MODULE_NAME=register_file run
 # You can also run all ISA checks, tho this requires some setup and can maybe be run better than you. Point to directory that has .elf files of each self-checking binary
 ./scripts/run_arch_test.sh folder_name
 
-# To check some waves see files saves in logs/ after sim runs
 ```
+
+# Zephyr
+
+Use the board/soc files in the /zephyr folder. Then `west build - b plyta` with any other needed parameters.  
+ 
