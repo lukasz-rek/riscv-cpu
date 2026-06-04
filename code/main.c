@@ -30,7 +30,7 @@
 
 #define UART_DIVISOR  UART_DIVISOR_BAUD(EE_TICKS_PER_SEC, UART_BAUD)
 
-#define TIMER_INTERVAL 4500
+#define TIMER_INTERVAL 5314
 
 void uart_init(void) {
     UART_LCR = LCR_DLAB;
@@ -138,22 +138,38 @@ int main(void) {
 
 
         // Arm timer before enabling interrupts
-    // write_timecmp(read_mtime() + TIMER_INTERVAL);
+    write_timecmp(read_mtime() + TIMER_INTERVAL);
 
-    // uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
-    // uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
-    // uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
+    uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
+    uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
+    uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
+    int b = 7;
+    secs = 0;
+    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    __asm__ volatile ("csrsi mstatus, 0x8");
 
-    // secs = 0;
-    // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
-    // __asm__ volatile ("csrsi mstatus, 0x8");           // enable MIE
-    static uint32_t dst[2];
-        asm volatile (
-            "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
-            "sw t0, 0(%0)"
-            : "+r"(dst)
-            :: "memory"
-        );
+
+    asm volatile("nop");
+    asm volatile("nop");
+    asm volatile("nop");
+    asm volatile("nop");
+    asm volatile("nop");
+    asm volatile("nop");
+    asm volatile("nop");
+
+    if (b == 7) {
+        uart_putc('y');
+    } else {
+        uart_putc('n');
+    }
+
+    // static uint32_t dst[2];
+    //     asm volatile (
+    //         "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
+    //         "sw t0, 0(%0)"
+    //         : "+r"(dst)
+    //         :: "memory"
+    //     );
 
 
     while(1) {

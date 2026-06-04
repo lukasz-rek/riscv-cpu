@@ -107,7 +107,7 @@ module exec (
     // instead of from the ALU result (was the worst setup path / the trap_en BUFGCE net).
     logic              trap_detect;
     logic              mret_detect;
-    logic              trap_stall_d;
+    // logic              trap_stall_d;
     isr_cause_t        trap_cause_d;
     logic       [31:0] trap_pc_d;
     logic       [31:0] trap_val_d;
@@ -119,7 +119,7 @@ module exec (
         flush = 0;
         flush_pc = '0;
         exec_stall = '0;
-        trap_stall_d = 0;
+        trap_stall = 0;
         csr_input = '0;
         mret_detect = 0;
         trap_detect = 0;
@@ -127,6 +127,7 @@ module exec (
         trap_cause_d = ILLEGAL_INSTR;
         trap_pc_d = '0;
         trap_val_d = '0;
+        csr_wr_data = 0;
 
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;
@@ -144,7 +145,7 @@ module exec (
         end else if (in_ctrl_signals.trap_en || in_ctrl_signals.mret_en) begin
             alu_op = ALU_OFF;
             temp_signals = '0;  // squash
-            trap_stall_d = 1;
+            trap_stall = 1;
             if (in_ctrl_signals.trap_en) begin
                 trap_detect = 1;
                 trap_pc_d   = in_ctrl_signals.pc;
@@ -180,7 +181,7 @@ module exec (
                     end else if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_H) begin
                         if (alu_result[0]) begin
                             trap_detect = 1;
-                            trap_stall_d = 1;
+                            trap_stall = 1;
                             trap_pc_d = in_ctrl_signals.pc;
                             trap_val_d = alu_result;
                             trap_cause_d = STORE_ADDR_MALIGN;
@@ -191,7 +192,7 @@ module exec (
                     end else begin
                         if (alu_result[1:0] != 2'b00) begin
                             trap_detect = 1;
-                            trap_stall_d = 1;
+                            trap_stall = 1;
                             trap_pc_d = in_ctrl_signals.pc;
                             trap_val_d = alu_result;
                             trap_cause_d = STORE_ADDR_MALIGN;
@@ -207,7 +208,7 @@ module exec (
                         LW: begin
                             if (alu_result[1:0] != 2'b00) begin
                                 trap_detect = 1;
-                                trap_stall_d = 1;
+                                trap_stall = 1;
                                 trap_pc_d = in_ctrl_signals.pc;
                                 trap_val_d = alu_result;
                                 trap_cause_d = LOAD_ADDR_MALIGN;
@@ -216,7 +217,7 @@ module exec (
                         LH, LHU: begin
                             if (alu_result[0]) begin
                                 trap_detect = 1;
-                                trap_stall_d = 1;
+                                trap_stall = 1;
                                 trap_pc_d = in_ctrl_signals.pc;
                                 trap_val_d = alu_result;
                                 trap_cause_d = LOAD_ADDR_MALIGN;
@@ -236,7 +237,7 @@ module exec (
                     // but check trap triggered
                     if (alu_result[1]) begin
                         trap_detect = 1;
-                        trap_stall_d = 1;
+                        trap_stall = 1;
                         trap_pc_d = in_ctrl_signals.pc;
                         trap_val_d = alu_result & ~32'b1;
                         trap_cause_d = INSTR_ADDR_MALIGN;
@@ -337,19 +338,19 @@ module exec (
         if (!rst_n) begin
             trap_en    <= 1'b0;
             mret_en    <= 1'b0;
-            trap_stall <= 1'b0;
+            // trap_stall <= 1'b0;
             trap_cause <= ILLEGAL_INSTR;
             trap_pc    <= '0;
             trap_val   <= '0;
         end else if (stall_D) begin
             // Hold the pending trap request across memory stalls.
-            trap_en    <= trap_en;
-            mret_en    <= mret_en;
-            trap_stall <= trap_stall;
+            trap_en <= trap_en;
+            mret_en <= mret_en;
+            // trap_stall <= trap_stall;
         end else begin
             trap_en    <= trap_detect  & ~(trap_en | mret_en);
             mret_en    <= mret_detect  & ~(trap_en | mret_en);
-            trap_stall <= trap_stall_d & ~(trap_en | mret_en);
+            // trap_stall <= trap_stall_d & ~(trap_en | mret_en);
             trap_cause <= trap_cause_d;
             trap_pc    <= trap_pc_d;
             trap_val   <= trap_val_d;

@@ -1,0 +1,6 @@
+config SOC_SKIETA
+	bool
+	help
+	  Some core of mine
+config SOC
+	default "skieta" if SOC_SKIETA

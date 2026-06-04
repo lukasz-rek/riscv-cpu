@@ -1,0 +1,13 @@
+config SOC_SKIETA
+	select RISCV
+	select RISCV_ISA_RV32I
+	select RISCV_ISA_BASE_FENCE
+	select RISCV_ISA_EXT_M
+	select RISCV_ISA_EXT_ZICSR
+	select RISCV_ISA_EXT_ZICNTR
+	select RISCV_MACHINE_TIMER
+	select RISCV_PRIVILEGED
+
+if SOC_SKIETA
+
+endif

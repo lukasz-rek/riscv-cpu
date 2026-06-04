@@ -165,6 +165,20 @@ module axi_tb;
     wire [3:0]   cpu_be = dut.top_inst.axi_m.byte_en;
     logic [7:0] shadow [logic [31:0]];
 
+    // debug
+    wire [31:0] commit_pc = dut.top_inst.cpu.rf_stage.current_ctrl_signals.pc;
+    wire [31:0] commit_instr = dut.top_inst.cpu.rf_stage.current_ctrl_signals.instr;
+    wire commit_valid = dut.top_inst.cpu.rf_stage.current_ctrl_signals.log_valid;
+
+    wire [31:0] rf_wr_data = dut.top_inst.cpu.rf_stage.wr_data;
+    wire [4:0] rf_wr_addr = dut.top_inst.cpu.rf_stage.wr_addr;
+    wire rf_wr_en = dut.top_inst.cpu.rf_stage.rf_wr_en;
+
+    wire mem_stall_d = dut.top_inst.cpu.mem_stage.stall_D;
+    wire mem_wr_en = dut.top_inst.cpu.mem_stage.mem_wr_en;
+    wire [31:0] mem_wr_addr = dut.top_inst.cpu.mem_stage.mem_addr2;
+    wire [31:0] mem_wr_data = dut.top_inst.cpu.mem_stage.mem_wr_data;
+
     logic [31:0] exec_instr;
     logic [31:0] exec_pc;
 
@@ -241,8 +255,6 @@ module axi_tb;
         end else begin
             // Per-instruction trace
             if (mem_pc != last_unique_pc && mem_pc != 0) begin
-                $fwrite(trace_fd, "%0t  PC=%08h  INSTR=%08h\n",
-                        $time, mem_pc, mem_instr);
                 last_unique_pc <= mem_pc;
                 inst_cnt       <= inst_cnt + 1;
             end
@@ -277,7 +289,7 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #32_000_000;
+        #8_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;
@@ -357,6 +369,18 @@ module axi_tb;
     always @(posedge clk) begin
         if (axi_awvalid && axi_awready)
             last_awaddr <= axi_awaddr;
+        if (rf_wr_en) begin
+            $fwrite(trace_fd, "REG_ADDR=%02h  REG_DATA=%08h\n",
+                           rf_wr_addr, rf_wr_data);
+        end
+        if (!mem_stall_d && mem_wr_en) begin
+            $fwrite(trace_fd, "MEM_ADDR=%08h  MEM_DATA=%08h\n",
+                           mem_wr_addr, mem_wr_data);
+        end
+        if (commit_valid) begin
+            $fwrite(trace_fd, "PC=%08h  INSTR=%08h\n",
+                           commit_pc, commit_instr);
+        end
     end
 
     always @(posedge clk) begin

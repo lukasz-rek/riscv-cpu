@@ -1,0 +1,7 @@
+board:
+  name: plyta
+  full_name: RV32IM Kria Softcore
+  vendor: luki
+  socs:
+  - name: skieta
+

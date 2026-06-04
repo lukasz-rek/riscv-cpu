@@ -168,6 +168,7 @@ package core_pkg;
         logic [6:0] opcode;
         logic [31:0] instr;
         logic [31:0] pc;  // Of instruction
+        logic log_valid;
 
     } ctrl_signals_t;
 endpackage

@@ -8,7 +8,7 @@ module decode (
     input logic rst_n,
 
     input logic [31:0] instr_data,
-    input logic [31:0] instr_pc,
+    (* MARK_DEBUG = "TRUE" *) input logic [31:0] instr_pc,
     input logic valid,
     // Used to correct IF if we have stalls/flushes
     output logic [31:0] next_pc,
@@ -38,7 +38,7 @@ module decode (
     output logic [31:0] isr_pc
 );
 
-    logic [31:0] instruction;
+    (* MARK_DEBUG = "TRUE" *) logic [31:0] instruction;
 
     logic [6:0] opcode;
     logic [4:0] rd;
@@ -87,9 +87,20 @@ module decode (
         isr_en = 0;
         isr_pc = '0;
 
+        // Only inject an interrupt when decode holds a genuine, on-path
+        // resume point. Exclude:
+        //  - `flush`: decode currently holds a wrong-path branch/jalr shadow
+        //    whose PC must NOT be latched into mepc.
+        //  - `exec_trap_en`/`exec_mret_en`: a registered redirect from EXEC
+        //    (exception / mret) is committing in the CSR this cycle; injecting
+        //    here too would collide with it (corrupt mepc/mcause).
+        // (We guard on the exec-side registered signals rather than trap_taken
+        // because trap_taken combinationally includes isr_en itself -> a loop.)
+        // The interrupt stays pending (level) and is taken on the real next
+        // instruction a cycle later.
         if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
             isr_en = 1;
-            isr_pc = instr_pc;
+            isr_pc = (flush) ? flush_pc : instr_pc;
         end
 
         if (!valid) begin
@@ -105,7 +116,12 @@ module decode (
             next_pc_en = 1;
             next_pc = instr_pc;
             freeze = 1;
-        end else if (trap_taken || trap_pending) begin
+        end else if (trap_taken || isr_en) begin
+            // Redirect to the handler only when we actually committed the
+            // interrupt above (isr_en) or a registered trap/mret redirect is
+            // landing (trap_taken). Driving this off raw trap_pending would
+            // jump to the handler in cycles where isr_en was (correctly)
+            // suppressed, without the CSR ever recording the trap.
             next_pc_en = 1;
             next_pc = trap_target;
             trap_service = 1;
@@ -121,7 +137,7 @@ module decode (
             temp_signals.rs1 = rs1;
             temp_signals.rs2 = rs2;
             temp_signals.opcode = opcode;
-
+            temp_signals.log_valid = 1;
 
             temp_signals.rd = rd;
             // $write("PC: %h, INSTR: %h\n", instr_pc, instr_data);
@@ -357,7 +373,7 @@ module decode (
         end else begin
 
             // If flush asserted, save latch values
-            if (flush) begin
+            if (flush && !isr_en) begin
                 flush_latch_q <= 1;
                 flush_pc_q <= flush_pc;
             end else if ((instr_pc == flush_pc_q) && valid) begin

@@ -250,6 +250,7 @@ module axi_master #(
                     end
                 end
                 AXI_R_DONE: begin
+                    i_stall_in_progress <= '0;
                     cache_load <= '0;
                     beat_counter <= 0;
                     state_q <= AXI_OFF;

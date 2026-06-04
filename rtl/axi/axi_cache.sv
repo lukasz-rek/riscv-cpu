@@ -147,7 +147,12 @@ module axi_cache #(
                 end else if (clear_valid) begin
                     cache_info_we = 1'b1;
                     cache_info_write.valid = 1'b0;
-                end else if (wr_en && !miss) begin
+                end else if (wr_en && !miss && !stall) begin
+                    // !stall ⇒ requested_line == current_cache_info_line, i.e. the
+                    // line is actually loaded into the BRAM output regs. Without this
+                    // guard a write issued during a line-change stall commits using the
+                    // PREVIOUS line's tag/valid (miss is evaluated against stale info),
+                    // corrupting the freshly-requested line on back-to-back writes.
                     for (int i = 0; i < 8; i++) cache_wdata[i*32+:32] = wr_data;
                     cache_wbe[requested_block*4+:4] = byte_en;
                     cache_info_we                   = 1'b1;
