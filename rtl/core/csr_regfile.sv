@@ -92,7 +92,7 @@ module csr_regfile (
     // Handle isr/trap cause
     always_comb begin
         prioritised_isr_cause = HW_ERROR;
-        trap_pending = isr_pending;
+        trap_pending = !csr_rd_en && !csr_wr_en && isr_pending;
         if (isr_pending) begin
             // Per spec it is MEI > MSI > MTI
             if (eff_pending[11]) prioritised_isr_cause = M_EXTERNAL_ISR;  // MEI

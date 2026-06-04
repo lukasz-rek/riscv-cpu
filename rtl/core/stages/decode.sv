@@ -8,7 +8,7 @@ module decode (
     input logic rst_n,
 
     input logic [31:0] instr_data,
-    input logic [31:0] instr_pc,
+    (* MARK_DEBUG = "TRUE" *) input logic [31:0] instr_pc,
     input logic valid,
     // Used to correct IF if we have stalls/flushes
     output logic [31:0] next_pc,
@@ -38,7 +38,7 @@ module decode (
     output logic [31:0] isr_pc
 );
 
-    logic [31:0] instruction;
+    (* MARK_DEBUG = "TRUE" *) logic [31:0] instruction;
 
     logic [6:0] opcode;
     logic [4:0] rd;
