@@ -32,10 +32,11 @@ module decode (
     input logic trap_stall,
     input logic trap_taken,
     input logic [31:0] trap_target,
-    input logic trap_pending,
+    input logic isr_pending,
 
     output logic isr_en,
-    output logic [31:0] isr_pc
+    output logic [31:0] isr_pc,
+    output logic trap_service  // Indicates to exec to clear reservation
 );
 
     (* MARK_DEBUG = "TRUE" *) logic [31:0] instruction;
@@ -66,7 +67,6 @@ module decode (
     logic flush_latch_q;
     logic [31:0] flush_pc_q;
 
-    logic trap_service;
 
     // If handling falls through, make it illegal
     function automatic void illegal_instr(ref ctrl_signals_t s);
@@ -98,7 +98,7 @@ module decode (
         // because trap_taken combinationally includes isr_en itself -> a loop.)
         // The interrupt stays pending (level) and is taken on the real next
         // instruction a cycle later.
-        if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
+        if (isr_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
             isr_en = 1;
             isr_pc = (flush) ? flush_pc : instr_pc;
         end
@@ -119,16 +119,12 @@ module decode (
         end else if (trap_taken || isr_en) begin
             // Redirect to the handler only when we actually committed the
             // interrupt above (isr_en) or a registered trap/mret redirect is
-            // landing (trap_taken). Driving this off raw trap_pending would
+            // landing (trap_taken). Driving this off raw isr_pending would
             // jump to the handler in cycles where isr_en was (correctly)
             // suppressed, without the CSR ever recording the trap.
             next_pc_en = 1;
             next_pc = trap_target;
             trap_service = 1;
-            // if (trap_pending) begin
-            //     isr_en = 1;
-            //     isr_pc = instr_pc;
-            // end
         end else begin
 
             temp_signals.pc = instr_pc;
@@ -355,6 +351,25 @@ module decode (
                         temp_signals.flush_I = 1'b1;
                     end else illegal_instr(temp_signals);
                 end
+                OP_AMO: begin
+                    if (funct7[3:2] == 2'b11 && funct3[1]) begin
+                        // Conditional Store
+                        temp_signals.alu_op = ALU_OFF;
+                        temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_W;
+                        // Don't set mem wr en just yet, only after reservation confirmed in exec
+                        temp_signals.rf_wr_en = 1;
+                        temp_signals.reservation_type = RESERVATION_STORE;
+                        temp_signals.rf_wr_data_valid = 1;
+                    end else if (funct7[3] && funct3[1]) begin
+                        // Conditional Load
+                        temp_signals.alu_op = ALU_OFF;
+                        temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
+                        temp_signals.mem_rd_en = 1;
+                        temp_signals.rf_wr_en = 1;
+                        temp_signals.load_mask = LW;
+                        temp_signals.reservation_type = RESERVATION_LOAD;
+                    end else illegal_instr(temp_signals);
+                end
                 default: illegal_instr(temp_signals);
             endcase
             temp_signals.imm = imm;
@@ -384,7 +399,7 @@ module decode (
 
             if (exec_stall || stall_D || (trap_stall && !trap_service)) begin
                 ctrl_signals <= ctrl_signals;
-            end else if (!valid || flush || flush_latch_q || trap_pending || trap_taken) begin
+            end else if (!valid || flush || flush_latch_q || isr_pending || trap_taken) begin
                 ctrl_signals <= '0;
             end else begin
                 // We get a new instruction

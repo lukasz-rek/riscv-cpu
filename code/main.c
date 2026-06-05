@@ -60,6 +60,7 @@ void print_hex(uint32_t val) {
         uint8_t nibble = (val >> i) & 0xF;
         uart_putc(nibble < 10 ? '0' + nibble : 'A' + nibble - 10);
     }
+    uart_putc('\n');
 }
 
 static inline uint64_t read_mtime(void) {
@@ -109,7 +110,8 @@ void trap_handler(void) {
         uart_puts(" pc=0x");          print_hex(mepc);
         uart_puts(" mtval=0x");       print_hex(mtval);
         uart_puts("\r\n");
-        while (1) {}
+        __asm__ volatile ("csrw mepc, %0"  :: "r"(mepc + 4));
+        // while (1) {}
     }
 }
 
@@ -143,25 +145,14 @@ int main(void) {
     uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
     uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
     uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
-    int b = 7;
     secs = 0;
-    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
-    __asm__ volatile ("csrsi mstatus, 0x8");
+    // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    // __asm__ volatile ("csrsi mstatus, 0x8");
 
 
-    asm volatile("nop");
-    asm volatile("nop");
-    asm volatile("nop");
-    asm volatile("nop");
-    asm volatile("nop");
-    asm volatile("nop");
-    asm volatile("nop");
 
-    if (b == 7) {
-        uart_putc('y');
-    } else {
-        uart_putc('n');
-    }
+
+
 
     // static uint32_t dst[2];
     //     asm volatile (
@@ -170,6 +161,21 @@ int main(void) {
     //         : "+r"(dst)
     //         :: "memory"
     //     );
+
+   uint32_t special = 7;
+   uint32_t special_reg = INT32_MAX;
+   uint32_t value_to_store = 5;
+   uint32_t cond_out = INT32_MAX;
+
+   asm volatile (
+       "lr.w %0, (%1)" : "=&r" (special_reg) : "r" (&special) : "memory");
+
+   asm volatile ( "sc.w %0, %1, (%2)" : "=&r" (cond_out) : "r" (value_to_store), "r" (&special) : "memory");
+
+   print_hex(special_reg);
+   print_hex(special);
+   print_hex(cond_out);
+
 
 
     while(1) {

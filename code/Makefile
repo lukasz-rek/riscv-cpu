@@ -1,7 +1,7 @@
 CC = clang
 OBJCOPY = llvm-objcopy
 
-CFLAGS   = --target=riscv32 -march=rv32im_zicntr -mabi=ilp32 -nostdlib -g -ffreestanding \
+CFLAGS   = --target=riscv32 -march=rv32im_zicntr_zalrsc -mabi=ilp32 -nostdlib -g -ffreestanding \
          -ffunction-sections -fdata-sections
 LDFLAGS  = -fuse-ld=lld -Wl,--gc-sections -T linker.ld
 

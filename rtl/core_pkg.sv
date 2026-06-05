@@ -65,6 +65,11 @@ package core_pkg;
         LHU
     } load_mask_t;
 
+    typedef enum logic [1:0] {
+        RESERVATION_OFF,
+        RESERVATION_LOAD,
+        RESERVATION_STORE
+    } reservation_op_t;
 
 
 
@@ -86,7 +91,8 @@ package core_pkg;
         OP_MISC_MEM = 7'b0001111,
 
         OP_LUI = 7'b0110111,
-        OP_AUI = 7'b0010111
+        OP_AUI = 7'b0010111,
+        OP_AMO = 7'b0101111
     } opcode_t;
 
     typedef enum logic [2:0] {
@@ -159,6 +165,8 @@ package core_pkg;
 
         logic flush_I;
 
+        // AMO
+        reservation_op_t reservation_type;
 
         // Alu
         alu_op_t alu_op;

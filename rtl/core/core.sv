@@ -106,7 +106,7 @@ module core (
 
     logic trap_taken;
     logic [31:0] trap_target;
-    logic trap_pending;
+    logic isr_pending;
 
     csr_regfile csr_regfile (
         .clk  (clk),
@@ -129,7 +129,7 @@ module core (
 
         .trap_taken  (trap_taken),
         .trap_target (trap_target),
-        .trap_pending(trap_pending),
+        .trap_pending(isr_pending),
 
         .mtime_isr(mtime_isr),
         .uart_isr (uart_isr)
@@ -145,6 +145,7 @@ module core (
     logic exec_stall;
     logic trap_stall;
     logic freeze;
+    logic id_ex_trap_service;
 
     decode decode_stage (
         .clk  (clk),
@@ -174,9 +175,10 @@ module core (
         .trap_stall(trap_stall),
         .trap_taken(trap_taken),
         .trap_target(trap_target),
-        .trap_pending(trap_pending),
+        .isr_pending(isr_pending),
         .isr_pc(isr_pc),
-        .isr_en(isr_en)
+        .isr_en(isr_en),
+        .trap_service(id_ex_trap_service)
     );
 
 
@@ -218,7 +220,9 @@ module core (
         .trap_stall(trap_stall),
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
-        .exec_stall(exec_stall)
+        .exec_stall(exec_stall),
+        .trap_service(id_ex_trap_service)
+
     );
 
     ctrl_signals_t mem_rf_ctrl;
