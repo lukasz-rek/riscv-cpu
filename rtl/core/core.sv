@@ -55,9 +55,9 @@ module core (
     );
 
     // Register file signals and instance
-    logic [ 5:0] rs1;
-    logic [ 5:0] rs2;
-    logic [ 5:0] rd;
+    logic [ 4:0] rs1;
+    logic [ 4:0] rs2;
+    logic [ 4:0] rd;
     logic [31:0] rs1_data;
     logic [31:0] rs2_data;
     logic rs1_valid, rs2_valid;

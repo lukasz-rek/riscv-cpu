@@ -64,6 +64,8 @@ module axi_master #(
     logic   [  31:0] mmio_out;
     logic            mmio_valid;
 
+    logic [31:0] d_cache_out_q;
+
     // Bit of cheating :( but that's not gonna change
     // + 1 bit to overflow when we go over
     logic   [15 : 0] flush_line_counter;
@@ -160,7 +162,11 @@ module axi_master #(
 
     assign flush_in_progress = (flush_I && !flush_done);
 
-    assign stall_D = (((stall_d || miss_d) || (is_mmio && !mmio_valid) || flush_in_progress)) && !flush_done;
+    wire stall_D_raw = (stall_d || miss_d || (rd_en_d && addr_d != d_cache_out_addr_q));
+    logic stall_D_raw_q;
+    logic [31:0] d_cache_out_addr_q;
+
+    assign stall_D = (((stall_D_raw || stall_D_raw_q) || (is_mmio && !mmio_valid) || flush_in_progress)) && !flush_done;
     assign stall_I = (stall_i || miss_i) || flush_in_progress;
 
     // Only clear if no miss or if miss and we're on final write stage
@@ -168,7 +174,7 @@ module axi_master #(
 
 
     assign cache_evicted_data = (i_stall_in_progress) ? cache_evicted_data_i : cache_evicted_data_d;
-    assign rd_data_d = (mmio_valid) ? mmio_out : d_cache_out;
+    assign rd_data_d = (mmio_valid) ? mmio_out : d_cache_out_q;
 
 
     always_ff @(posedge clk) begin
@@ -182,6 +188,8 @@ module axi_master #(
             flush_line_counter <= '0;
             flush_started <= 0;
             d_clear_dirty <= 0;
+            d_cache_out_q <= '0;
+            stall_D_raw_q <= '0;
         end else begin
             // See if we need to start an AXI transaction
             if ((state_q == AXI_OFF) && flush_in_progress && flush_started && !stall_d) begin
@@ -224,6 +232,10 @@ module axi_master #(
                 flush_line_counter <= 0;
                 flush_started <= 0;
             end
+
+            d_cache_out_q <= d_cache_out;
+            stall_D_raw_q <= stall_D_raw;
+            d_cache_out_addr_q <= addr_d;
 
             // Process appriopriate state
             case (state_q)

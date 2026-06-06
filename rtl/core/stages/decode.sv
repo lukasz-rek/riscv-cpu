@@ -51,9 +51,9 @@ module decode (
     (* MARK_DEBUG = "TRUE" *) logic [31:0] instruction;
 
     logic [6:0] opcode;
-    logic [5:0] rd;
-    logic [5:0] rs1;
-    logic [5:0] rs2;
+    logic [4:0] rd;
+    logic [4:0] rs1;
+    logic [4:0] rs2;
     logic [2:0] funct3;
     logic [6:0] funct7;
     logic [31:0] imm;
@@ -69,9 +69,9 @@ module decode (
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
     assign funct7 = instruction[31:25];
-    assign rd = {1'b0, instruction[11:7]};
-    assign rs1 = {1'b0, instruction[19:15]};
-    assign rs2 = {1'b0, instruction[24:20]};
+    assign rd = instruction[11:7];
+    assign rs1 = instruction[19:15];
+    assign rs2 = instruction[24:20];
     assign funct12 = instruction[31:20];
     assign funct5 = instruction[31:27];
 
@@ -89,10 +89,35 @@ module decode (
         s.rf_wr_en   = 1'b0;
     endfunction
 
+    always_comb begin
+        case (opcode)
+            OP_B: imm = {
+                {20{instruction[31]}},
+                instruction[7],
+                instruction[30:25],
+                instruction[11:8],
+                1'b0
+            };
+            OP_J: imm = {
+                {12{instruction[31]}},
+                instruction[19:12],
+                instruction[20],
+                instruction[30:21],
+                1'b0
+            };
+            OP_S: imm = {{20{instruction[31]}}, instruction[31:25], instruction[11:7]};
+            OP_R: imm = '0;
+            OP_I_MEM, OP_JALR, OP_I_ALU: imm = {{20{instruction[31]}}, instruction[31:20]};
+            OP_LUI, OP_AUI: imm = {instruction[31:12], 12'b0};
+            OP_SYSTEM:  imm = {27'b0, rs1};
+            OP_AMO: imm = '0;
+            default: imm = '0;
+        endcase
+    end
+
     // First actually decode the signals
     always_comb begin
         next_pc_en = 0;
-        imm = '0;
         next_pc = '0;
         temp_signals = 0;
         freeze = '0;
@@ -143,13 +168,6 @@ module decode (
 
             case (opcode)
                 OP_B: begin
-                    imm = {
-                        {20{instruction[31]}},
-                        instruction[7],
-                        instruction[30:25],
-                        instruction[11:8],
-                        1'b0
-                    };
                     temp_signals.rs2_src = REG;
                     temp_signals.branch_instr = 1;
                     case (funct3)
@@ -169,13 +187,6 @@ module decode (
                     endcase
                 end
                 OP_J: begin
-                    imm = {
-                        {12{instruction[31]}},
-                        instruction[19:12],
-                        instruction[20],
-                        instruction[30:21],
-                        1'b0
-                    };
                     temp_signals.rf_wr_en = 1;
                     temp_signals.alu_op = ALU_ADD;
                     temp_signals.rf_writeback = ALU_PC_INCR;
@@ -189,7 +200,6 @@ module decode (
                 end
                 OP_S: begin
                     temp_signals.mem_wr_en = 1;
-                    imm = {{20{instruction[31]}}, instruction[31:25], instruction[11:7]};
                     temp_signals.alu_op = ALU_ADD;
                     temp_signals.rs2_src = IMM;
 
@@ -239,7 +249,6 @@ module decode (
                     temp_signals.rf_writeback = ALU_REG;
                 end
                 OP_I_MEM, OP_JALR, OP_I_ALU: begin
-                    imm = {{20{instruction[31]}}, instruction[31:20]};
                     temp_signals.rf_wr_en = 1;
                     temp_signals.rs2_src = IMM;
 
@@ -289,7 +298,6 @@ module decode (
                     endcase
                 end
                 OP_LUI, OP_AUI: begin
-                    imm = {instruction[31:12], 12'b0};
                     temp_signals.rf_wr_en = 1;
                     temp_signals.rf_wr_data = (opcode == OP_LUI) ? imm : imm + instr_pc;
                     temp_signals.rf_wr_data_valid = 1;
@@ -304,7 +312,7 @@ module decode (
 
                         // Always perform cast, if wrong value, catch in following switch/case
                         temp_signals.csr_type = csr_type_t'(funct3);
-                        imm = {26'b0, rs1};
+
                         case (funct3)
                             CSRRW, CSRRWI: begin
                                 temp_signals.csr_op = CSR_RW;
@@ -389,17 +397,15 @@ module decode (
                                         temp_signals.rf_wr_en = 1;
                                         temp_signals.load_mask = LW;
                                         temp_signals.rs2_src = IMM;
-                                        temp_signals.rd = 6'd32;  // First load into special reg
-                                        imm = '0;
+                                        // temp_signals.rd = 6'd32;  // First load into special reg
                                     end
                                     AMO_LOAD_TO_HIDDEN: begin
                                         amo_state = AMO_HOLD_RD; // Also move into another special, addi special1, special, 0
                                         temp_signals.alu_op = ALU_ADD;
                                         temp_signals.rs2_src = IMM;
                                         temp_signals.rf_writeback = ALU_REG;
-                                        imm = '0;
-                                        temp_signals.rs1 = 6'd32;
-                                        temp_signals.rd = 6'd33;
+                                        // temp_signals.rs1 = 6'd32;
+                                        // temp_signals.rd = 6'd33;
                                         temp_signals.rf_wr_en = 1;
                                     end
                                     AMO_HOLD_RD: begin
@@ -407,8 +413,8 @@ module decode (
                                         temp_signals.rs2_src = REG;
                                         temp_signals.rf_writeback = ALU_REG;
                                         temp_signals.rf_wr_en = 1;
-                                        temp_signals.rs1 = 6'd32;  // special = special (op) rs2
-                                        temp_signals.rd = 6'd32;
+                                        // temp_signals.rs1 = 6'd32;  // special = special (op) rs2
+                                        // temp_signals.rd = 6'd32;
                                         case (funct5)
                                             // AMOSWAP - (practically) MV, ADD special, rs2, 0
                                             // so rs2 later gets stored into (rs1)
@@ -416,7 +422,6 @@ module decode (
                                                 temp_signals.alu_op = ALU_ADD;
                                                 temp_signals.rs1 = '0;
                                             end
-                                            // AMOADD - ADD
                                             5'b00000: temp_signals.alu_op = ALU_ADD;
                                             5'b01100: temp_signals.alu_op = ALU_AND;
                                             5'b01000: temp_signals.alu_op = ALU_OR;
@@ -432,18 +437,16 @@ module decode (
                                         amo_state = AMO_STORE;
                                         temp_signals.alu_op = ALU_ADD;
                                         temp_signals.rs2_src = IMM;
-                                        temp_signals.rs2 = 6'd32;
+                                        // temp_signals.rs2 = 6'd32;
                                         temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_W;
                                         temp_signals.mem_wr_en = 1;
-                                        imm = '0;
                                     end
                                     AMO_STORE: begin
                                         amo_state = AMO_MOVE_RD;  // From another special to our
                                         temp_signals.alu_op = ALU_ADD;
                                         temp_signals.rs2_src = IMM;
                                         temp_signals.rf_writeback = ALU_REG;
-                                        imm = '0;
-                                        temp_signals.rs1 = 6'd33;
+                                        // temp_signals.rs1 = 6'd33;
                                         temp_signals.rf_wr_en = 1;
                                     end
                                     AMO_MOVE_RD: begin

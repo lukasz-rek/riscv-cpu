@@ -13,8 +13,8 @@ module exec (
     // output ctrl_signals_t forward_result,
 
     // Register file stuff
-    output logic [5:0] rs1_addr,
-    output logic [5:0] rs2_addr,
+    output logic [4:0] rs1_addr,
+    output logic [4:0] rs2_addr,
     input logic [31:0] rs1_data,
     input logic [31:0] rs2_data,
     input logic rs1_valid,
@@ -149,7 +149,7 @@ module exec (
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;
             IMM: alu_op_b = in_ctrl_signals.imm;
-            SHAMT: alu_op_b = {26'b0, rs2_addr};
+            SHAMT: alu_op_b = {27'b0, rs2_addr};
             default: ;
         endcase
 

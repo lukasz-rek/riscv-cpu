@@ -29,7 +29,7 @@ limitations under the License.
 #define LSR_THRE  (1 << 5)
 #define UART_BAUD           115200
 #define UART_DIVISOR_BAUD(freq, baud)  (((freq) + (16 * (baud)) / 2) / (16 * (baud)))
-#define EE_TICKS_PER_SEC           125000000
+#define EE_TICKS_PER_SEC           150000000
 
 #define UART_DIVISOR  UART_DIVISOR_BAUD(EE_TICKS_PER_SEC, UART_BAUD)
 

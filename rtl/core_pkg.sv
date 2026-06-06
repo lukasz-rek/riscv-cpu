@@ -130,9 +130,9 @@ package core_pkg;
         logic rf_wr_en;
         logic [31:0] rf_wr_data;
         logic rf_wr_data_valid;
-        logic [5:0] rs1;
-        logic [5:0] rs2;
-        logic [5:0] rd;
+        logic [4:0] rs1;
+        logic [4:0] rs2;
+        logic [4:0] rd;
         logic [31:0] imm;
         rs2_source_t rs2_src;
 
