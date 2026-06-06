@@ -4,7 +4,7 @@ import core_pkg::*;
 
 module rf_writeback (
     output logic rf_wr_en,
-    output logic [4:0] wr_addr,
+    output logic [5:0] wr_addr,
     output logic [31:0] wr_data,
     input logic [31:0] mem_read,
     /* verilator lint_off UNUSEDSIGNAL */

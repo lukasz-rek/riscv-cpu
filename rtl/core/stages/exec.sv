@@ -13,8 +13,8 @@ module exec (
     // output ctrl_signals_t forward_result,
 
     // Register file stuff
-    output logic [4:0] rs1_addr,
-    output logic [4:0] rs2_addr,
+    output logic [5:0] rs1_addr,
+    output logic [5:0] rs2_addr,
     input logic [31:0] rs1_data,
     input logic [31:0] rs2_data,
     input logic rs1_valid,
@@ -120,6 +120,10 @@ module exec (
     logic              validate_reservation;
     logic              invalidate_reservation;
 
+    // Temp reg for atomic ops
+    logic       [31:0] atomic_temp_q;
+    logic       [31:0] atomic_temp;
+
     always_comb begin
         // Assign correct operands
         alu_op_a = rs1_data;
@@ -140,11 +144,12 @@ module exec (
         validate_reservation = 0;
         invalidate_reservation = 0;
         reservation_addr = '0;
+        atomic_temp = atomic_temp_q;
 
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;
             IMM: alu_op_b = in_ctrl_signals.imm;
-            SHAMT: alu_op_b = {27'b0, rs2_addr};
+            SHAMT: alu_op_b = {26'b0, rs2_addr};
             default: ;
         endcase
 
@@ -189,17 +194,14 @@ module exec (
                 ALU_MEM_ADDR_WRITE_B, ALU_MEM_ADDR_WRITE_H, ALU_MEM_ADDR_WRITE_W: begin
                     if (temp_signals.reservation_type == RESERVATION_STORE) begin
                         temp_signals.mem_wr_addr = rs1_data;
-                        invalidate_reservation   = 1;
+                        invalidate_reservation = !stall_D;  // Only if we're certain we can advance
                         if (reservation_valid_q && reservation_addr_q == temp_signals.mem_wr_addr) begin
                             temp_signals.mem_wr_en  = 1;
-                            temp_signals.rf_wr_data = 0;  // 0 on OK, 1 otherwise
+                            temp_signals.rf_wr_data = 32'b0;  // 0 on OK, 1 otherwise
                         end else begin
                             temp_signals.mem_wr_en  = 0;
-                            temp_signals.rf_wr_data = 1;
+                            temp_signals.rf_wr_data = 32'b1;
                         end
-                        temp_signals.rf_wr_data = {
-                            31'b0, !reservation_valid_q
-                        };  // 0 on OK, 1 otherwise;
                     end else temp_signals.mem_wr_addr = alu_result;
                     if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_B) begin
                         temp_signals.mem_byte_en = 4'b0001 << alu_result[1:0];
@@ -337,6 +339,7 @@ module exec (
             out_ctrl_signals <= 0;
             reservation_valid_q <= 0;
             reservation_addr_q <= '0;
+            atomic_temp_q <= '0;
         end else begin
             if (stall_D) begin
                 out_ctrl_signals <= out_ctrl_signals;
@@ -375,13 +378,14 @@ module exec (
             trap_pc    <= '0;
             trap_val   <= '0;
         end else begin
+            atomic_temp_q <= atomic_temp;
+
             if (trap_service || invalidate_reservation) begin
                 reservation_valid_q <= 0;
             end else if (validate_reservation) begin
                 reservation_valid_q <= 1;
                 reservation_addr_q  <= reservation_addr;
             end
-
 
             if (stall_D) begin
                 // Hold the pending trap request across memory stalls.

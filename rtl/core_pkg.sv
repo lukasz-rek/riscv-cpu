@@ -33,8 +33,13 @@ package core_pkg;
         ALU_DIV,
         ALU_DIVU,
         ALU_REM,
-        ALU_REMU
+        ALU_REMU,
 
+        // Atomics special
+        ALU_MIN,
+        ALU_MINU,
+        ALU_MAX,
+        ALU_MAXU
     } alu_op_t;
 
     typedef enum logic [2:0] {
@@ -125,9 +130,9 @@ package core_pkg;
         logic rf_wr_en;
         logic [31:0] rf_wr_data;
         logic rf_wr_data_valid;
-        logic [4:0] rs1;
-        logic [4:0] rs2;
-        logic [4:0] rd;
+        logic [5:0] rs1;
+        logic [5:0] rs2;
+        logic [5:0] rd;
         logic [31:0] imm;
         rs2_source_t rs2_src;
 

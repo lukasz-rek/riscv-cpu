@@ -66,11 +66,12 @@ module alu (
             ALU_SLT:  comb_result = {31'b0, $signed(a) < $signed(b)};
             ALU_SLTU: comb_result = {31'b0, a < b};
 
-            // M extension ops
-            // ALU_MUL: comb_result = ($signed(a) * $signed(b));  // Only keeps lowest so fine
-            // ALU_MULH: comb_result = 32'((64'($signed(a)) * 64'($signed(b))) >> 32);
-            // ALU_MULHSU: comb_result = 32'((64'($signed(a)) * 64'(b)) >> 32);
-            // ALU_MULHU: comb_result = 32'((64'(a) * 64'(b)) >> 32);
+            ALU_MAX:  comb_result = ($signed(a) > $signed(b)) ? a : b;
+            ALU_MAXU: comb_result = (a > b) ? a : b;
+            ALU_MIN:  comb_result = ($signed(a) < $signed(b)) ? a : b;
+            ALU_MINU: comb_result = (a < b) ? a : b;
+
+
             ALU_MUL, ALU_MULH, ALU_MULHSU, ALU_MULHU: comb_result = mul_out;
             default: comb_result = 32'h0;
         endcase

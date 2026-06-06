@@ -162,21 +162,36 @@ int main(void) {
     //         :: "memory"
     //     );
 
-   uint32_t special = 7;
-   uint32_t special_reg = INT32_MAX;
-   uint32_t value_to_store = 5;
-   uint32_t cond_out = INT32_MAX;
+   // uint32_t special = 7;
+   // uint32_t special_reg = INT32_MAX;
+   // uint32_t value_to_store = 5;
+   // uint32_t cond_out = INT32_MAX;
 
-   asm volatile (
-       "lr.w %0, (%1)" : "=&r" (special_reg) : "r" (&special) : "memory");
+   // asm volatile (
+   //     "lr.w %0, (%1)" : "=&r" (special_reg) : "r" (&special) : "memory");
 
-   asm volatile ( "sc.w %0, %1, (%2)" : "=&r" (cond_out) : "r" (value_to_store), "r" (&special) : "memory");
+   // asm volatile ( "sc.w %0, %1, (%2)" : "=&r" (cond_out) : "r" (value_to_store), "r" (&special) : "memory");
 
-   print_hex(special_reg);
-   print_hex(special);
-   print_hex(cond_out);
+   // print_hex(special_reg);
+   // print_hex(special);
+   // print_hex(cond_out);
 
+   uint32_t op1 = 7;
+   uint32_t op2 = 32;
 
+   uint32_t out = INT32_MAX;
+
+   uart_puts("Before: \n");
+   print_hex(op1);
+   print_hex(op2);
+   print_hex(out);
+
+   asm volatile ("amoadd.w %0, %1, (%2)" : "=&r" (out) : "r" (op1), "r" (&op2));
+
+   uart_puts("After: \n");
+   print_hex(op1);
+   print_hex(op2);
+   print_hex(out);
 
     while(1) {
         asm volatile("nop");
