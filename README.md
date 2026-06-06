@@ -6,7 +6,7 @@ Stuff still to be done before linux ready:
   - [x] Will probably require some smol cache to not tank perf
       - [ ]   Associative cache might give improvements, but current impl good enough for now
 - [x] Tidy up UART interface (also anything MMIO is good for now)
-- [ ] Implement A extension (should be easy with only 1 cpu)
+- [x] Implement A extension (should be easy with only 1 cpu)
 - [ ] Rest of privilege spec I need, S/U modes etc.
 - [x] ISR handling + selected traps
 - [ ] Implement MMU (theoretically not needed, but I wanna do it)
@@ -21,7 +21,7 @@ Supports a timer ISR, selected traps and 16550 UART.
 
 Runs Zephyr with the attached board/soc files. 
 
-It's also passing the riscv ISA [tests](https://github.com/riscv/riscv-arch-test) for I and M extensions.
+It's also passing the riscv ISA [tests](https://github.com/riscv/riscv-arch-test) for I,M,A,Zicsr, Zicntr extensions.
 ```
 Starting coremark
 2K performance run parameters for coremark.
