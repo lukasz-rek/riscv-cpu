@@ -16,7 +16,7 @@ Stuff still to be done before linux ready:
 
 See [Benchmarks](docs/benchmarks.md) for whole progress, but this is latest results:
 
-125 MHz, riscv32im, pipelined with access to 1GB DDR over AXI, 2 32 KB I and D caches.
+125 MHz, riscv32ima, pipelined with access to 1GB DDR over AXI, 2 32 KB I and D caches.
 Supports a timer ISR, selected traps and 16550 UART. 
 
 Runs Zephyr with the attached board/soc files. 
