@@ -13,8 +13,8 @@ module exec (
     // output ctrl_signals_t forward_result,
 
     // Register file stuff
-    output logic [4:0] rs1_addr,
-    output logic [4:0] rs2_addr,
+    output logic [5:0] rs1_addr,
+    output logic [5:0] rs2_addr,
     input logic [31:0] rs1_data,
     input logic [31:0] rs2_data,
     input logic rs1_valid,
@@ -40,7 +40,8 @@ module exec (
     output logic flush,
     output logic exec_stall,
     output logic trap_stall,
-    output logic [31:0] flush_pc
+    output logic [31:0] flush_pc,
+    input logic trap_service  // From decode, tells us to invalidate reservations
 );
 
 
@@ -112,6 +113,17 @@ module exec (
     logic       [31:0] trap_pc_d;
     logic       [31:0] trap_val_d;
 
+    // Reservation handling
+    logic       [31:0] reservation_addr;
+    logic       [31:0] reservation_addr_q;
+    logic              reservation_valid_q;
+    logic              validate_reservation;
+    logic              invalidate_reservation;
+
+    // Temp reg for atomic ops
+    logic       [31:0] atomic_temp_q;
+    logic       [31:0] atomic_temp;
+
     always_comb begin
         // Assign correct operands
         alu_op_a = rs1_data;
@@ -129,16 +141,22 @@ module exec (
         trap_val_d = '0;
         csr_wr_data = 0;
 
+        validate_reservation = 0;
+        invalidate_reservation = 0;
+        reservation_addr = '0;
+        atomic_temp = atomic_temp_q;
+
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;
             IMM: alu_op_b = in_ctrl_signals.imm;
-            SHAMT: alu_op_b = {27'b0, rs2_addr};
+            SHAMT: alu_op_b = {26'b0, rs2_addr};
             default: ;
         endcase
 
         // Handle stall when we don't have data yet
         // We can't start div or anything during this time
-        if ((in_ctrl_signals.alu_op != ALU_OFF || in_ctrl_signals.rf_writeback == ALU_CSR) && (!rs1_valid || !rs2_valid)) begin
+        if ((in_ctrl_signals.alu_op != ALU_OFF || in_ctrl_signals.rf_writeback == ALU_CSR
+            || in_ctrl_signals.reservation_type != RESERVATION_OFF) && (!rs1_valid || !rs2_valid)) begin
             alu_op = ALU_OFF;
             exec_stall = 1;
             temp_signals = '0;
@@ -174,27 +192,37 @@ module exec (
                     temp_signals.rf_wr_data = alu_result;
                 end
                 ALU_MEM_ADDR_WRITE_B, ALU_MEM_ADDR_WRITE_H, ALU_MEM_ADDR_WRITE_W: begin
-                    temp_signals.mem_wr_addr = alu_result;
+                    if (temp_signals.reservation_type == RESERVATION_STORE) begin
+                        temp_signals.mem_wr_addr = rs1_data;
+                        invalidate_reservation = !stall_D;  // Only if we're certain we can advance
+                        if (reservation_valid_q && reservation_addr_q == temp_signals.mem_wr_addr) begin
+                            temp_signals.mem_wr_en  = 1;
+                            temp_signals.rf_wr_data = 32'b0;  // 0 on OK, 1 otherwise
+                        end else begin
+                            temp_signals.mem_wr_en  = 0;
+                            temp_signals.rf_wr_data = 32'b1;
+                        end
+                    end else temp_signals.mem_wr_addr = alu_result;
                     if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_B) begin
                         temp_signals.mem_byte_en = 4'b0001 << alu_result[1:0];
                         temp_signals.mem_wr_data = {4{rs2_data[7:0]}};
                     end else if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_H) begin
-                        if (alu_result[0]) begin
+                        if (temp_signals.mem_wr_addr[0]) begin
                             trap_detect = 1;
                             trap_stall = 1;
                             trap_pc_d = in_ctrl_signals.pc;
-                            trap_val_d = alu_result;
+                            trap_val_d = temp_signals.mem_wr_addr;
                             trap_cause_d = STORE_ADDR_MALIGN;
                         end else begin
                             temp_signals.mem_byte_en = 4'b0011 << {alu_result[1], 1'b0};
                             temp_signals.mem_wr_data = {2{rs2_data[15:0]}};
                         end
                     end else begin
-                        if (alu_result[1:0] != 2'b00) begin
+                        if (temp_signals.mem_wr_addr[1:0] != 2'b00) begin
                             trap_detect = 1;
                             trap_stall = 1;
                             trap_pc_d = in_ctrl_signals.pc;
-                            trap_val_d = alu_result;
+                            trap_val_d = temp_signals.mem_wr_addr;
                             trap_cause_d = STORE_ADDR_MALIGN;
                         end else begin
                             temp_signals.mem_wr_data = rs2_data;
@@ -203,23 +231,27 @@ module exec (
                     end
                 end
                 ALU_MEM_ADDR_READ: begin
-                    temp_signals.mem_addr2 = alu_result;
+                    if (temp_signals.reservation_type == RESERVATION_LOAD) begin
+                        validate_reservation = 1;
+                        reservation_addr = rs1_data;
+                        temp_signals.mem_addr2 = rs1_data;
+                    end else temp_signals.mem_addr2 = alu_result;
                     case (in_ctrl_signals.load_mask)
                         LW: begin
-                            if (alu_result[1:0] != 2'b00) begin
+                            if (temp_signals.mem_addr2[1:0] != 2'b00) begin
                                 trap_detect = 1;
                                 trap_stall = 1;
                                 trap_pc_d = in_ctrl_signals.pc;
-                                trap_val_d = alu_result;
+                                trap_val_d = temp_signals.mem_addr2;
                                 trap_cause_d = LOAD_ADDR_MALIGN;
                             end
                         end
                         LH, LHU: begin
-                            if (alu_result[0]) begin
+                            if (temp_signals.mem_addr2[0]) begin
                                 trap_detect = 1;
                                 trap_stall = 1;
                                 trap_pc_d = in_ctrl_signals.pc;
-                                trap_val_d = alu_result;
+                                trap_val_d = temp_signals.mem_addr2;
                                 trap_cause_d = LOAD_ADDR_MALIGN;
                             end
                         end
@@ -305,6 +337,9 @@ module exec (
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             out_ctrl_signals <= 0;
+            reservation_valid_q <= 0;
+            reservation_addr_q <= '0;
+            atomic_temp_q <= '0;
         end else begin
             if (stall_D) begin
                 out_ctrl_signals <= out_ctrl_signals;
@@ -342,18 +377,29 @@ module exec (
             trap_cause <= ILLEGAL_INSTR;
             trap_pc    <= '0;
             trap_val   <= '0;
-        end else if (stall_D) begin
-            // Hold the pending trap request across memory stalls.
-            trap_en <= trap_en;
-            mret_en <= mret_en;
-            // trap_stall <= trap_stall;
         end else begin
-            trap_en    <= trap_detect  & ~(trap_en | mret_en);
-            mret_en    <= mret_detect  & ~(trap_en | mret_en);
-            // trap_stall <= trap_stall_d & ~(trap_en | mret_en);
-            trap_cause <= trap_cause_d;
-            trap_pc    <= trap_pc_d;
-            trap_val   <= trap_val_d;
+            atomic_temp_q <= atomic_temp;
+
+            if (trap_service || invalidate_reservation) begin
+                reservation_valid_q <= 0;
+            end else if (validate_reservation) begin
+                reservation_valid_q <= 1;
+                reservation_addr_q  <= reservation_addr;
+            end
+
+            if (stall_D) begin
+                // Hold the pending trap request across memory stalls.
+                trap_en <= trap_en;
+                mret_en <= mret_en;
+                // trap_stall <= trap_stall;
+            end else begin
+                trap_en    <= trap_detect  & ~(trap_en | mret_en);
+                mret_en    <= mret_detect  & ~(trap_en | mret_en);
+                // trap_stall <= trap_stall_d & ~(trap_en | mret_en);
+                trap_cause <= trap_cause_d;
+                trap_pc    <= trap_pc_d;
+                trap_val   <= trap_val_d;
+            end
         end
     end
 

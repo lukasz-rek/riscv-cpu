@@ -1,7 +1,16 @@
 /* verilator lint_off IMPORTSTAR */
 import core_pkg::*;
-
 /* verilator lint_on IMPORTSTAR */
+
+typedef enum logic [2:0] {
+    AMO_OFF,
+    AMO_LOAD_TO_HIDDEN,
+    AMO_HOLD_RD,
+    AMO_OP,
+    AMO_STORE,
+    AMO_MOVE_RD
+} amo_state_t;
+
 
 module decode (
     input logic clk,
@@ -32,22 +41,24 @@ module decode (
     input logic trap_stall,
     input logic trap_taken,
     input logic [31:0] trap_target,
-    input logic trap_pending,
+    input logic isr_pending,
 
     output logic isr_en,
-    output logic [31:0] isr_pc
+    output logic [31:0] isr_pc,
+    output logic trap_service  // Indicates to exec to clear reservation
 );
 
     (* MARK_DEBUG = "TRUE" *) logic [31:0] instruction;
 
     logic [6:0] opcode;
-    logic [4:0] rd;
-    logic [4:0] rs1;
-    logic [4:0] rs2;
+    logic [5:0] rd;
+    logic [5:0] rs1;
+    logic [5:0] rs2;
     logic [2:0] funct3;
     logic [6:0] funct7;
     logic [31:0] imm;
     logic [11:0] funct12;
+    logic [4:0] funct5;
 
     // Used for comibnational stuff and clocked once later
     ctrl_signals_t temp_signals;
@@ -58,15 +69,18 @@ module decode (
     assign opcode = instruction[6:0];
     assign funct3 = instruction[14:12];
     assign funct7 = instruction[31:25];
-    assign rd = instruction[11:7];
-    assign rs1 = instruction[19:15];
-    assign rs2 = instruction[24:20];
+    assign rd = {1'b0, instruction[11:7]};
+    assign rs1 = {1'b0, instruction[19:15]};
+    assign rs2 = {1'b0, instruction[24:20]};
     assign funct12 = instruction[31:20];
+    assign funct5 = instruction[31:27];
 
     logic flush_latch_q;
     logic [31:0] flush_pc_q;
 
-    logic trap_service;
+    amo_state_t amo_state_q;
+    amo_state_t amo_state;
+
 
     // If handling falls through, make it illegal
     function automatic void illegal_instr(ref ctrl_signals_t s);
@@ -86,19 +100,11 @@ module decode (
         trap_service = 0;
         isr_en = 0;
         isr_pc = '0;
+        amo_state = amo_state_q;
 
-        // Only inject an interrupt when decode holds a genuine, on-path
-        // resume point. Exclude:
-        //  - `flush`: decode currently holds a wrong-path branch/jalr shadow
-        //    whose PC must NOT be latched into mepc.
-        //  - `exec_trap_en`/`exec_mret_en`: a registered redirect from EXEC
-        //    (exception / mret) is committing in the CSR this cycle; injecting
-        //    here too would collide with it (corrupt mepc/mcause).
-        // (We guard on the exec-side registered signals rather than trap_taken
-        // because trap_taken combinationally includes isr_en itself -> a loop.)
-        // The interrupt stays pending (level) and is taken on the real next
-        // instruction a cycle later.
-        if (trap_pending && valid && !exec_stall && !stall_D && !flush_latch_q) begin
+
+        // Without this, it sees circular logc in isr_pc changing in case of a trap
+        if (isr_pending && valid && !exec_stall && !stall_D && !flush_latch_q && amo_state_q == AMO_OFF) begin
             isr_en = 1;
             isr_pc = (flush) ? flush_pc : instr_pc;
         end
@@ -117,18 +123,10 @@ module decode (
             next_pc = instr_pc;
             freeze = 1;
         end else if (trap_taken || isr_en) begin
-            // Redirect to the handler only when we actually committed the
-            // interrupt above (isr_en) or a registered trap/mret redirect is
-            // landing (trap_taken). Driving this off raw trap_pending would
-            // jump to the handler in cycles where isr_en was (correctly)
-            // suppressed, without the CSR ever recording the trap.
+
             next_pc_en = 1;
             next_pc = trap_target;
             trap_service = 1;
-            // if (trap_pending) begin
-            //     isr_en = 1;
-            //     isr_pc = instr_pc;
-            // end
         end else begin
 
             temp_signals.pc = instr_pc;
@@ -306,7 +304,7 @@ module decode (
 
                         // Always perform cast, if wrong value, catch in following switch/case
                         temp_signals.csr_type = csr_type_t'(funct3);
-                        imm = {27'b0, rs1};
+                        imm = {26'b0, rs1};
                         case (funct3)
                             CSRRW, CSRRWI: begin
                                 temp_signals.csr_op = CSR_RW;
@@ -355,6 +353,112 @@ module decode (
                         temp_signals.flush_I = 1'b1;
                     end else illegal_instr(temp_signals);
                 end
+                OP_AMO: begin
+                    if (funct3 != 3'b010) begin
+
+                    end else begin
+                        case (funct5)
+                            5'b00010: begin
+                                // Conditional Load
+                                temp_signals.alu_op = ALU_OFF;
+                                temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
+                                temp_signals.mem_rd_en = 1;
+                                temp_signals.rf_wr_en = 1;
+                                temp_signals.load_mask = LW;
+                                temp_signals.reservation_type = RESERVATION_LOAD;
+                            end
+                            5'b00011: begin
+                                // Conditional Store
+                                temp_signals.alu_op = ALU_OFF;
+                                temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_W;
+                                // Don't set mem wr en just yet, only after reservation confirmed in exec
+                                temp_signals.rf_wr_en = 1;
+                                temp_signals.reservation_type = RESERVATION_STORE;
+                                temp_signals.rf_wr_data_valid = 1;
+                            end
+                            5'b00001, 5'b00000, 5'b01100, 5'b01000, 5'b00100,
+                            5'b10100, 5'b11100, 5'b10000, 5'b11000: begin // Begin processing of atomic ops
+                                next_pc_en = 1;
+                                next_pc = instr_pc;  // Just hold the AMO until we're done
+                                case (amo_state_q)
+                                    AMO_OFF: begin
+                                        amo_state = AMO_LOAD_TO_HIDDEN; // Start a load into special reg
+                                        temp_signals.alu_op = ALU_ADD;
+                                        temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
+                                        temp_signals.mem_rd_en = 1;
+                                        temp_signals.rf_wr_en = 1;
+                                        temp_signals.load_mask = LW;
+                                        temp_signals.rs2_src = IMM;
+                                        temp_signals.rd = 6'd32;  // First load into special reg
+                                        imm = '0;
+                                    end
+                                    AMO_LOAD_TO_HIDDEN: begin
+                                        amo_state = AMO_HOLD_RD; // Also move into another special, addi special1, special, 0
+                                        temp_signals.alu_op = ALU_ADD;
+                                        temp_signals.rs2_src = IMM;
+                                        temp_signals.rf_writeback = ALU_REG;
+                                        imm = '0;
+                                        temp_signals.rs1 = 6'd32;
+                                        temp_signals.rd = 6'd33;
+                                        temp_signals.rf_wr_en = 1;
+                                    end
+                                    AMO_HOLD_RD: begin
+                                        amo_state = AMO_OP;
+                                        temp_signals.rs2_src = REG;
+                                        temp_signals.rf_writeback = ALU_REG;
+                                        temp_signals.rf_wr_en = 1;
+                                        temp_signals.rs1 = 6'd32;  // special = special (op) rs2
+                                        temp_signals.rd = 6'd32;
+                                        case (funct5)
+                                            // AMOSWAP - (practically) MV, ADD special, rs2, 0
+                                            // so rs2 later gets stored into (rs1)
+                                            5'b00001: begin
+                                                temp_signals.alu_op = ALU_ADD;
+                                                temp_signals.rs1 = '0;
+                                            end
+                                            // AMOADD - ADD
+                                            5'b00000: temp_signals.alu_op = ALU_ADD;
+                                            5'b01100: temp_signals.alu_op = ALU_AND;
+                                            5'b01000: temp_signals.alu_op = ALU_OR;
+                                            5'b00100: temp_signals.alu_op = ALU_XOR;
+                                            5'b10100: temp_signals.alu_op = ALU_MAX;
+                                            5'b11100: temp_signals.alu_op = ALU_MAXU;
+                                            5'b10000: temp_signals.alu_op = ALU_MIN;
+                                            5'b11000: temp_signals.alu_op = ALU_MINU;
+                                            default:  illegal_instr(temp_signals);
+                                        endcase
+                                    end
+                                    AMO_OP: begin
+                                        amo_state = AMO_STORE;
+                                        temp_signals.alu_op = ALU_ADD;
+                                        temp_signals.rs2_src = IMM;
+                                        temp_signals.rs2 = 6'd32;
+                                        temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_W;
+                                        temp_signals.mem_wr_en = 1;
+                                        imm = '0;
+                                    end
+                                    AMO_STORE: begin
+                                        amo_state = AMO_MOVE_RD;  // From another special to our
+                                        temp_signals.alu_op = ALU_ADD;
+                                        temp_signals.rs2_src = IMM;
+                                        temp_signals.rf_writeback = ALU_REG;
+                                        imm = '0;
+                                        temp_signals.rs1 = 6'd33;
+                                        temp_signals.rf_wr_en = 1;
+                                    end
+                                    AMO_MOVE_RD: begin
+                                        amo_state  = AMO_OFF;
+                                        next_pc_en = 0;
+                                    end
+
+                                    default: illegal_instr(temp_signals);
+                                endcase
+                            end
+                            default: illegal_instr(temp_signals);
+                        endcase
+                    end
+                end
+
                 default: illegal_instr(temp_signals);
             endcase
             temp_signals.imm = imm;
@@ -370,8 +474,10 @@ module decode (
             ctrl_signals <= '0;
             flush_latch_q <= 0;
             flush_pc_q <= '0;
+            amo_state_q <= AMO_OFF;
         end else begin
 
+            amo_state_q <= amo_state;
             // If flush asserted, save latch values
             if (flush && !isr_en) begin
                 flush_latch_q <= 1;
@@ -384,7 +490,7 @@ module decode (
 
             if (exec_stall || stall_D || (trap_stall && !trap_service)) begin
                 ctrl_signals <= ctrl_signals;
-            end else if (!valid || flush || flush_latch_q || trap_pending || trap_taken) begin
+            end else if (!valid || flush || flush_latch_q || isr_pending || trap_taken) begin
                 ctrl_signals <= '0;
             end else begin
                 // We get a new instruction
