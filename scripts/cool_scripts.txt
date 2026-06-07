@@ -1,0 +1,9 @@
+# Drops caches as otherwise we get some axii artifacts
+sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
+
+# Reset core
+sudo devmem2 0x80000000 w 0x1
+
+# Load fpga
+sudo fpgautil -b ~/bitstreams/bitstream.bit.bin
+sudo ./write_hex code/coremark.hex

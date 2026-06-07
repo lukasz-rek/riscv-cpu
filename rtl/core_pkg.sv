@@ -76,7 +76,13 @@ package core_pkg;
         RESERVATION_STORE
     } reservation_op_t;
 
-
+    typedef enum logic [2:0] {
+        AMO_OFF,
+        AMO_LOAD_TO_HIDDEN,
+        AMO_OP,
+        AMO_STORE,
+        AMO_MOVE_RD
+    } amo_state_t;
 
     typedef enum logic [6:0] {
         // All based on https://www.vicilogic.com/static/ext/RISCV/RV32I_BaseInstructionSet.pdf
@@ -130,9 +136,9 @@ package core_pkg;
         logic rf_wr_en;
         logic [31:0] rf_wr_data;
         logic rf_wr_data_valid;
-        logic [5:0] rs1;
-        logic [5:0] rs2;
-        logic [5:0] rd;
+        logic [4:0] rs1;
+        logic [4:0] rs2;
+        logic [4:0] rd;
         logic [31:0] imm;
         rs2_source_t rs2_src;
 
@@ -172,6 +178,8 @@ package core_pkg;
 
         // AMO
         reservation_op_t reservation_type;
+        amo_state_t amo_state;
+        logic use_amo_temp;
 
         // Alu
         alu_op_t alu_op;

@@ -9,8 +9,8 @@ module register_file #(
     input logic rst_n,
 
     // Reading
-    input  logic [     5:0] rs1_addr,
-    input  logic [     5:0] rs2_addr,
+    input  logic [     4:0] rs1_addr,
+    input  logic [     4:0] rs2_addr,
     output logic [XLEN-1:0] rs1_data,
     output logic [XLEN-1:0] rs2_data,
     // Used to indicate whether forwarded things are oki
@@ -26,11 +26,11 @@ module register_file #(
 
     // Writing
     input logic            wr_en,
-    input logic [     5:0] wr_addr,
+    input logic [     4:0] wr_addr,
     input logic [XLEN-1:0] wr_data
 );
     // Extra special register for AMO
-    logic [XLEN-1:0] registers[32:0];
+    logic [XLEN-1:0] registers[31:0];
 
 
     // Reading can be combinational for now
@@ -66,7 +66,7 @@ module register_file #(
     // Writing
     always_ff @(posedge clk) begin : writeRegister
         if (!rst_n) begin
-            for (int i = 0; i < 33; i++) registers[i] <= '0;
+            for (int i = 0; i < 32; i++) registers[i] <= '0;
         end else if (wr_en && wr_addr != 0)
             // No writes to 0
             registers[wr_addr] <= wr_data;

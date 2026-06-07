@@ -4,13 +4,15 @@ import core_pkg::*;
 
 module rf_writeback (
     output logic rf_wr_en,
-    output logic [5:0] wr_addr,
+    output logic [4:0] wr_addr,
     output logic [31:0] wr_data,
     input logic [31:0] mem_read,
     /* verilator lint_off UNUSEDSIGNAL */
     input ctrl_signals_t in_ctrl_signals,
     /* verilator lint_on UNUSEDSIGNAL */
-    output ctrl_signals_t current_ctrl_signals
+    output ctrl_signals_t current_ctrl_signals,
+    output logic [31:0] atomic_temporary_value,
+    output logic [1:0] atomic_temporary_id
 );
 
     assign rf_wr_en = in_ctrl_signals.rf_wr_en && in_ctrl_signals.rf_wr_data_valid;
@@ -18,6 +20,7 @@ module rf_writeback (
 
     always_comb begin
         wr_data = '0;
+        atomic_temporary_id = '0;
         if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_READ) begin
             if (in_ctrl_signals.reservation_type == RESERVATION_STORE) begin
                 wr_data = in_ctrl_signals.rf_wr_data;  // Propagate sc.w result
@@ -57,6 +60,13 @@ module rf_writeback (
         end
         current_ctrl_signals = in_ctrl_signals;
         current_ctrl_signals.rf_wr_data = wr_data;
+        if (current_ctrl_signals.amo_state == AMO_LOAD_TO_HIDDEN && in_ctrl_signals.rf_wr_data_valid) begin
+            atomic_temporary_id = 2'd3;
+            atomic_temporary_value = wr_data;
+        end else begin
+            atomic_temporary_id = 2'd0;
+            atomic_temporary_value = '0;
+        end
     end
 
 
