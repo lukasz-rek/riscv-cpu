@@ -186,7 +186,7 @@ int main(void) {
    print_hex(op2);
    print_hex(out);
 
-   // asm volatile ("amoadd.w %0, %1, (%2)" : "=&r" (out) : "r" (op1), "r" (&op2));
+   asm volatile ("amoswap.w %0, %1, (%2)" : "=&r" (out) : "r" (op1), "r" (&op2));
 
    uart_puts("After: \n");
    print_hex(op1);

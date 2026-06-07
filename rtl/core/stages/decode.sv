@@ -2,14 +2,6 @@
 import core_pkg::*;
 /* verilator lint_on IMPORTSTAR */
 
-typedef enum logic [2:0] {
-    AMO_OFF,
-    AMO_LOAD_TO_HIDDEN,
-    AMO_HOLD_RD,
-    AMO_OP,
-    AMO_STORE,
-    AMO_MOVE_RD
-} amo_state_t;
 
 
 module decode (
@@ -17,7 +9,7 @@ module decode (
     input logic rst_n,
 
     input logic [31:0] instr_data,
-    (* MARK_DEBUG = "TRUE" *) input logic [31:0] instr_pc,
+    input logic [31:0] instr_pc,
     input logic valid,
     // Used to correct IF if we have stalls/flushes
     output logic [31:0] next_pc,
@@ -48,7 +40,7 @@ module decode (
     output logic trap_service  // Indicates to exec to clear reservation
 );
 
-    (* MARK_DEBUG = "TRUE" *) logic [31:0] instruction;
+    logic [31:0] instruction;
 
     logic [6:0] opcode;
     logic [4:0] rd;
@@ -91,25 +83,19 @@ module decode (
 
     always_comb begin
         case (opcode)
-            OP_B: imm = {
-                {20{instruction[31]}},
-                instruction[7],
-                instruction[30:25],
-                instruction[11:8],
-                1'b0
+            OP_B:
+            imm = {
+                {20{instruction[31]}}, instruction[7], instruction[30:25], instruction[11:8], 1'b0
             };
-            OP_J: imm = {
-                {12{instruction[31]}},
-                instruction[19:12],
-                instruction[20],
-                instruction[30:21],
-                1'b0
+            OP_J:
+            imm = {
+                {12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:21], 1'b0
             };
             OP_S: imm = {{20{instruction[31]}}, instruction[31:25], instruction[11:7]};
             OP_R: imm = '0;
             OP_I_MEM, OP_JALR, OP_I_ALU: imm = {{20{instruction[31]}}, instruction[31:20]};
             OP_LUI, OP_AUI: imm = {instruction[31:12], 12'b0};
-            OP_SYSTEM:  imm = {27'b0, rs1};
+            OP_SYSTEM: imm = {27'b0, rs1};
             OP_AMO: imm = '0;
             default: imm = '0;
         endcase
@@ -250,7 +236,7 @@ module decode (
                 end
                 OP_I_MEM, OP_JALR, OP_I_ALU: begin
                     temp_signals.rf_wr_en = 1;
-                    temp_signals.rs2_src = IMM;
+                    temp_signals.rs2_src  = IMM;
 
                     case (opcode)
                         OP_I_MEM: begin
@@ -394,32 +380,20 @@ module decode (
                                         temp_signals.alu_op = ALU_ADD;
                                         temp_signals.rf_writeback = ALU_MEM_ADDR_READ;
                                         temp_signals.mem_rd_en = 1;
-                                        temp_signals.rf_wr_en = 1;
                                         temp_signals.load_mask = LW;
                                         temp_signals.rs2_src = IMM;
-                                        // temp_signals.rd = 6'd32;  // First load into special reg
                                     end
                                     AMO_LOAD_TO_HIDDEN: begin
-                                        amo_state = AMO_HOLD_RD; // Also move into another special, addi special1, special, 0
-                                        temp_signals.alu_op = ALU_ADD;
-                                        temp_signals.rs2_src = IMM;
-                                        temp_signals.rf_writeback = ALU_REG;
-                                        // temp_signals.rs1 = 6'd32;
-                                        // temp_signals.rd = 6'd33;
-                                        temp_signals.rf_wr_en = 1;
-                                    end
-                                    AMO_HOLD_RD: begin
                                         amo_state = AMO_OP;
                                         temp_signals.rs2_src = REG;
                                         temp_signals.rf_writeback = ALU_REG;
-                                        temp_signals.rf_wr_en = 1;
-                                        // temp_signals.rs1 = 6'd32;  // special = special (op) rs2
-                                        // temp_signals.rd = 6'd32;
+                                        temp_signals.use_amo_temp = 1;
                                         case (funct5)
                                             // AMOSWAP - (practically) MV, ADD special, rs2, 0
                                             // so rs2 later gets stored into (rs1)
                                             5'b00001: begin
                                                 temp_signals.alu_op = ALU_ADD;
+                                                temp_signals.use_amo_temp = 0;
                                                 temp_signals.rs1 = '0;
                                             end
                                             5'b00000: temp_signals.alu_op = ALU_ADD;
@@ -437,7 +411,6 @@ module decode (
                                         amo_state = AMO_STORE;
                                         temp_signals.alu_op = ALU_ADD;
                                         temp_signals.rs2_src = IMM;
-                                        // temp_signals.rs2 = 6'd32;
                                         temp_signals.rf_writeback = ALU_MEM_ADDR_WRITE_W;
                                         temp_signals.mem_wr_en = 1;
                                     end
@@ -446,7 +419,6 @@ module decode (
                                         temp_signals.alu_op = ALU_ADD;
                                         temp_signals.rs2_src = IMM;
                                         temp_signals.rf_writeback = ALU_REG;
-                                        // temp_signals.rs1 = 6'd33;
                                         temp_signals.rf_wr_en = 1;
                                     end
                                     AMO_MOVE_RD: begin
@@ -456,6 +428,7 @@ module decode (
 
                                     default: illegal_instr(temp_signals);
                                 endcase
+                                temp_signals.amo_state = amo_state;
                             end
                             default: illegal_instr(temp_signals);
                         endcase

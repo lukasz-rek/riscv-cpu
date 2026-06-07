@@ -41,22 +41,30 @@ module exec (
     output logic exec_stall,
     output logic trap_stall,
     output logic [31:0] flush_pc,
-    input logic trap_service  // From decode, tells us to invalidate reservations
+    input logic trap_service,  // From decode, tells us to invalidate reservations
+
+    input logic [ 1:0] atomic_temporary_id,
+    input logic [31:0] atomic_temporary_value
 );
+    // Temp reg for atomic ops
+    logic    [31:0] atomic_temp_q;
+    logic    [31:0] atomic_temp;
+    logic           atomic_temp_valid_q;
 
+    logic    [31:0] atomic_temporary_values_q[1:0];
 
-    logic [31:0] alu_op_a;
-    logic [31:0] alu_op_b;
-    alu_op_t alu_op;
-    logic [31:0] alu_result;
-    logic alu_zero;
-    logic alu_active;
-    logic alu_result_en;
+    logic    [31:0] alu_op_a;
+    logic    [31:0] alu_op_b;
+    alu_op_t        alu_op;
+    logic    [31:0] alu_result;
+    logic           alu_zero;
+    logic           alu_active;
+    logic           alu_result_en;
     alu alu_inst (
         .clk  (clk),
         .rst_n(rst_n),
 
-        .a(alu_op_a),
+        .a((in_ctrl_signals.use_amo_temp || in_ctrl_signals.amo_state == AMO_MOVE_RD) ? atomic_temporary_values_q[0] : alu_op_a),
         .b(alu_op_b),
         .alu_op(alu_op),
         .result(alu_result),
@@ -120,9 +128,6 @@ module exec (
     logic              validate_reservation;
     logic              invalidate_reservation;
 
-    // Temp reg for atomic ops
-    logic       [31:0] atomic_temp_q;
-    logic       [31:0] atomic_temp;
 
     always_comb begin
         // Assign correct operands
@@ -146,6 +151,7 @@ module exec (
         reservation_addr = '0;
         atomic_temp = atomic_temp_q;
 
+
         case (in_ctrl_signals.rs2_src)
             REG: alu_op_b = rs2_data;
             IMM: alu_op_b = in_ctrl_signals.imm;
@@ -156,7 +162,8 @@ module exec (
         // Handle stall when we don't have data yet
         // We can't start div or anything during this time
         if ((in_ctrl_signals.alu_op != ALU_OFF || in_ctrl_signals.rf_writeback == ALU_CSR
-            || in_ctrl_signals.reservation_type != RESERVATION_OFF) && (!rs1_valid || !rs2_valid)) begin
+            || in_ctrl_signals.reservation_type != RESERVATION_OFF) && (!rs1_valid || (!rs2_valid && (in_ctrl_signals.rs2_src == REG || in_ctrl_signals.mem_wr_en  || in_ctrl_signals.reservation_type == RESERVATION_STORE)))
+        || (in_ctrl_signals.amo_state == AMO_OP && !atomic_temp_valid_q)) begin
             alu_op = ALU_OFF;
             exec_stall = 1;
             temp_signals = '0;
@@ -225,7 +232,7 @@ module exec (
                             trap_val_d = temp_signals.mem_wr_addr;
                             trap_cause_d = STORE_ADDR_MALIGN;
                         end else begin
-                            temp_signals.mem_wr_data = rs2_data;
+                            temp_signals.mem_wr_data = (temp_signals.amo_state == AMO_STORE) ? atomic_temporary_values_q[1] : rs2_data;
                             temp_signals.mem_byte_en = 4'b1111;
                         end
                     end
@@ -337,7 +344,6 @@ module exec (
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             out_ctrl_signals <= 0;
-            reservation_valid_q <= 0;
             reservation_addr_q <= '0;
             atomic_temp_q <= '0;
         end else begin
@@ -377,8 +383,29 @@ module exec (
             trap_cause <= ILLEGAL_INSTR;
             trap_pc    <= '0;
             trap_val   <= '0;
+            atomic_temporary_values_q[0] <= '0;
+            atomic_temporary_values_q[1] <= '0;
+            reservation_valid_q <= 0;
+            atomic_temp_valid_q <= 0;
         end else begin
             atomic_temp_q <= atomic_temp;
+            if (atomic_temporary_id != 2'd0) atomic_temp_valid_q <= 1;
+            else if (temp_signals.amo_state == AMO_MOVE_RD) atomic_temp_valid_q <= 0;
+
+            if (temp_signals.amo_state == AMO_OP) begin
+                atomic_temporary_values_q[1] <= alu_result;
+            end else begin
+
+                case (atomic_temporary_id)
+                    2'd1: atomic_temporary_values_q[0] <= atomic_temporary_value;
+                    2'd2: atomic_temporary_values_q[1] <= atomic_temporary_value;
+                    2'd3: begin  // Move into both, useful on first load
+                        atomic_temporary_values_q[0] <= atomic_temporary_value;
+                        atomic_temporary_values_q[1] <= atomic_temporary_value;
+                    end
+                    default: ;
+                endcase
+            end
 
             if (trap_service || invalidate_reservation) begin
                 reservation_valid_q <= 0;

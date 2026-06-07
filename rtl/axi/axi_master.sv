@@ -64,7 +64,7 @@ module axi_master #(
     logic   [  31:0] mmio_out;
     logic            mmio_valid;
 
-    logic [31:0] d_cache_out_q;
+    logic   [  31:0] d_cache_out_q;
 
     // Bit of cheating :( but that's not gonna change
     // + 1 bit to overflow when we go over

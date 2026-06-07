@@ -184,6 +184,8 @@ module core (
 
 
     ctrl_signals_t ex_mem_ctrl;
+    logic [1:0] atomic_temporary_id;
+    logic [31:0] atomic_temporary_value;
 
     exec exec_stage (
         .clk  (clk),
@@ -221,7 +223,9 @@ module core (
         .flush(ex_id_flush),
         .flush_pc(ex_id_flush_pc),
         .exec_stall(exec_stall),
-        .trap_service(id_ex_trap_service)
+        .trap_service(id_ex_trap_service),
+        .atomic_temporary_id(atomic_temporary_id),
+        .atomic_temporary_value(atomic_temporary_value)
 
     );
 
@@ -255,7 +259,9 @@ module core (
         .mem_read(mem_rd_data2),
 
         .in_ctrl_signals(mem_rf_ctrl),
-        .current_ctrl_signals(rd_if_forward_ctrl)
+        .current_ctrl_signals(rd_if_forward_ctrl),
+        .atomic_temporary_id(atomic_temporary_id),
+        .atomic_temporary_value(atomic_temporary_value)
     );
 
 
