@@ -24,6 +24,8 @@ module csr_regfile (
     /* verilator lint_on UNUSEDSIGNAL */
     input logic [31:0] trap_val,
     input logic mret_en,
+    // Tell exec some goofy CSR access just happened
+    output logic csr_bad,
 
     output logic trap_taken,
     output logic [31:0] trap_target,
@@ -66,7 +68,7 @@ module csr_regfile (
     logic [63:0] minstret;
     // verilog_format: off
     /* verilator lint_off UNUSEDSIGNAL */
-    mstatus_t mstatus; mstatus_t mstatus_q; mstatus_t mstatus_temp;
+    mstatus_t mstatus; mstatus_t mstatus_q;
     mstatush_t mstatush; mstatush_t mstatush_q;
     mtvec_t mtvec; mtvec_t mtvec_q; mtvec_t mtvec_temp;
     mie_t mie; mie_t mie_q;
@@ -76,6 +78,24 @@ module csr_regfile (
     mcause_t mcause; mcause_t mcause_q;
     mscratch_t mscratch; mscratch_t mscratch_q;
     mtval_t mtval; mtval_t mtval_q;
+    medeleg_t medeleg; medeleg_t medeleg_q;
+    medelegh_t medelegh; medelegh_t medelegh_q;
+    mideleg_t mideleg; mideleg_t mideleg_q;
+    mcounteren_t mcounteren; mcounteren_t mcounteren_q;
+    // Supervisor CSRs
+    sstatus_t sstatus_temp; sstatus_t sstatus_mask;
+    assign sstatus_mask = 32'h818DE762; // Masks wpri fields
+    sie_t sie_temp; sie_t sie_mask;
+    assign sie_mask = 32'h0000_2222;
+    sip_t sip_temp; sip_t sip_mask;
+    assign sip_mask = 32'h0000_2222;
+    stvec_t stvec; stvec_t stvec_q; stvec_t stvec_temp;
+    sepc_t sepc; sepc_t sepc_q;
+    scause_t scause; scause_t scause_q;
+    stval_t stval; stval_t stval_q;
+    sscratch_t sscratch; sscratch_t sscratch_q;
+    satp_t satp; satp_t satp_q;
+    scounteren_t scounteren; scounteren_t scounteren_q;
     /* verilator lint_on UNUSEDSIGNAL */
     // verilog_format: on
 
@@ -106,9 +126,10 @@ module csr_regfile (
     // Reads + sanitize writes
     always_comb begin
         csr_rd_data = '0;
+        csr_bad = 0;
 
         // verilog_format: off
-        mstatus = mstatus_q; mstatus_temp = '0;
+        mstatus = mstatus_q;
         mstatush = mstatus_q;
         mtvec = mtvec_q; mtvec_temp = '0;
         mie = mie_q;
@@ -116,26 +137,95 @@ module csr_regfile (
         mcause = mcause_q;
         mscratch = mscratch_q;
         mtval = mtval_q;
+        // Supervisor
+        sstatus_temp = '0;
+        sie_temp = '0;
+        sip_temp = '0;
+        stvec = stvec_q; stvec_temp = '0;
+        scounteren = scounteren_q;
+        sscratch = sscratch_q;
+        sepc = sepc_q;
+        scause = scause_q;
+        stval = stval_q;
+        satp = satp_q;
         // verilog_format: on
 
         if (!csr_rd_en && !csr_wr_en) begin
             ;  // Do nothing
         end else if (current_csr_priv_bits > privilege) begin
-            // TODO: throw exception
+            csr_bad = 1;
         end else if (current_csr_read_only && csr_wr_en) begin
-            // TODO: throw exception
+            csr_bad = 1;
         end else begin
 
             case (csr_addr)
+                // Supervisor Registers
+                // Since some of them are the same as Machine ones
+                // Then we need to strip inaccessible parts
+                // Supervisor Trap Setup
+                12'h100: begin
+                    csr_rd_data = mstatus_q & sstatus_mask;
+
+                    sstatus_temp = sstatus_t'(csr_wr_data) & sstatus_mask;
+                    mstatus = (mstatus_q & ~sstatus_mask) | sstatus_temp;
+                end
+                12'h104: begin
+                    csr_rd_data = mie_q & sie_mask;
+
+                    sie_temp = sie_t'(csr_wr_data) & sie_mask;
+                    mie = (mie_q & ~sie_mask) | sie_temp;
+                end
+                12'h105: begin
+                    csr_rd_data = stvec_q;
+
+                    stvec_temp  = stvec_t'(csr_wr_data);
+                    if (stvec_temp.mode <= 2'd1) begin
+                        stvec.mode = stvec_temp.mode;
+                    end
+                    stvec.base = stvec_temp.base;
+                end
+                12'h106: begin
+                    csr_rd_data = scounteren_q;
+
+                    scounteren  = scounteren_t'(csr_wr_data);
+                end
+                // Supervisor Trap Handling
+                12'h140: begin
+                    csr_rd_data = sscratch_q;
+
+                    sscratch = csr_wr_data;
+                end
+                12'h141: begin
+                    csr_rd_data = sepc_q;
+
+                    sepc = csr_wr_data;
+                    sepc[1:0] = 2'b00;
+                end
+                12'h142: begin
+                    csr_rd_data = scause_q;
+
+                    scause = csr_wr_data;
+                end
+                12'h143: begin
+                    csr_rd_data = stval_q;
+
+                    stval = csr_wr_data;
+                end
+                12'h144: begin
+                    csr_rd_data = mip_q & sip_mask;
+
+                end
+                // Supervisor Address Protection and Translation
+                12'h180: begin
+                    csr_rd_data = satp_q;
+
+                    satp = csr_wr_data;
+                end
                 // Machine Information Registers
                 // Machine Trap Setup
                 12'h300: begin
-                    csr_rd_data  = mstatus_q;
-                    mstatus_temp = mstatus_t'(csr_wr_data);
-
-                    mstatus.mie  = mstatus_temp.mie;
-                    mstatus.mpie = mstatus_temp.mpie;
-                    mstatus.mpp  = mstatus_temp.mpp;
+                    csr_rd_data = mstatus_q;
+                    mstatus = mstatus_t'(csr_wr_data);
                 end
                 12'h301: csr_rd_data = MISA_VALUE;
                 12'h304: begin
@@ -176,11 +266,16 @@ module csr_regfile (
                 end
                 12'h344: csr_rd_data = mip_q;
                 // Machine Counters/Timers
+                12'hB00, 12'hB01: csr_rd_data = mcycle[31:0];
+                12'hB80, 12'hB81: csr_rd_data = mcycle[63:32];
+                12'hB02: csr_rd_data = minstret[31:0];
+                12'hB82: csr_rd_data = minstret[63:32];
+                // Unprivileged Counters
                 12'hC00, 12'hC01: csr_rd_data = mcycle[31:0];
                 12'hC80, 12'hC81: csr_rd_data = mcycle[63:32];
                 12'hC02: csr_rd_data = minstret[31:0];
                 12'hC82: csr_rd_data = minstret[63:32];
-                default: ;
+                default: csr_bad = 1;
             endcase
 
         end
@@ -204,6 +299,13 @@ module csr_regfile (
             mcause_q <= '0;
             mscratch_q <= '0;
             mtval_q <= '0;
+            stvec_q <= '0;
+            scounteren_q <= '0;
+            sscratch_q <= '0;
+            sepc_q <= '0;
+            scause_q <= '0;
+            stval_q <= '0;
+            satp_q <= '0;
         end else begin
             mcycle <= mcycle + 1;
             mip_q <= mip;
@@ -231,6 +333,13 @@ module csr_regfile (
                 mcause_q <= mcause;
                 mscratch_q <= mscratch;
                 mtval_q <= mtval;
+                scounteren_q <= scounteren;
+                stvec_q <= stvec;
+                sscratch_q <= sscratch;
+                sepc_q <= sepc;
+                scause_q <= scause;
+                stval_q <= stval;
+                satp_q <= satp;
             end
         end
     end

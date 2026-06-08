@@ -33,6 +33,7 @@ module exec (
     output logic [31:0] trap_pc,
     output logic [31:0] trap_val,
     output logic mret_en,
+    input logic csr_bad,
 
     input logic freeze,
     input logic stall_D,
@@ -303,7 +304,16 @@ module exec (
                         end
                         default: ;
                     endcase
-                    temp_signals.rf_wr_data_valid = 1;
+                    if (!csr_bad) begin
+                        temp_signals.rf_wr_data_valid = 1;
+                    end else begin
+                        // Trap bad csr access
+                        trap_detect = 1;
+                        trap_stall = 1;
+                        trap_pc_d = in_ctrl_signals.pc;
+                        trap_val_d = in_ctrl_signals.instr;
+                        trap_cause_d = ILLEGAL_INSTR;
+                    end
                 end
                 default: ;
             endcase
