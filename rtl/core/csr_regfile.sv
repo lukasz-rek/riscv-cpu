@@ -47,9 +47,11 @@ module csr_regfile (
     assign current_csr_priv_bits = csr_privilege_t'(csr_addr[9:8]);
 
 
-    assign trap_taken = trap_en | mret_en;
-
-
+    assign trap_taken = trap_en | mret_en | sret_en;
+    // Depending on what combination of isr+trap triggered decodes right one
+    isr_cause_t prioritised_isr_cause;
+    // True iff any isr is waiting
+    logic isr_pending;
     // Handle trap_target in diff modes and with sret/mret
     always_comb begin
         if (mret_en) begin
@@ -57,11 +59,11 @@ module csr_regfile (
         end else if (sret_en) begin
             trap_target = sepc_q.pc;
         end else if (supervisor_trap) begin
-            trap_target = (stvec_q.mode == 2'b01) ?  // If vector mode, BASE + 4 * CAUSE
-            {stvec_q.base, 2'b00} + (32'(scause_q.code) << 2) : {stvec_q.base, 2'b00};
+            trap_target = (stvec_q.mode == 2'b01 && isr_pending) ?  // If vector mode, BASE + 4 * CAUSE
+            {stvec_q.base, 2'b00} + (32'(prioritised_isr_cause) << 2) : {stvec_q.base, 2'b00};
         end else begin
-            trap_target = (mtvec_q.mode == 2'b01) ?
-            {mtvec_q.base, 2'b00} + (32'(mcause_q.code) << 2) : {mtvec_q.base, 2'b00};
+            trap_target = (mtvec_q.mode == 2'b01 && isr_pending) ?
+            {mtvec_q.base, 2'b00} + (32'(prioritised_isr_cause) << 2) : {mtvec_q.base, 2'b00};
         end
     end
 
@@ -117,10 +119,8 @@ module csr_regfile (
     /* verilator lint_on UNUSEDSIGNAL */
     // verilog_format: on
 
-    // True iff any isr is waiting
-    logic isr_pending;
-    // Depending on what combination of isr+trap triggered decodes right one
-    isr_cause_t prioritised_isr_cause;
+
+
 
     // Guards so requested trap changes are done only once.
     logic trap_changes_committed_q;
@@ -131,7 +131,7 @@ module csr_regfile (
     assign s_pending = mie_q & mip & mideleg_q;
 
     assign isr_pending = ((privilege != M_MODE || mstatus_q.mie) && m_pending != '0) ||
-    ((privilege == U_MODE || mstatus_q.sie) && s_pending != '0);
+    ((privilege == U_MODE ||(mstatus_q.sie && privilege == S_MODE)) && s_pending != '0);
 
     assign eff_pending = mie_q & mip;  // Enabled and pending
 
@@ -144,13 +144,26 @@ module csr_regfile (
             // Per spec it is MEI > MSI > MTI
             if (eff_pending[11]) prioritised_isr_cause = M_EXTERNAL_ISR;  // MEI
             else if (eff_pending[7]) prioritised_isr_cause = M_MACHINE_TIMER;  // MTI
+            else if (eff_pending[3]) prioritised_isr_cause = M_SOFTWARE_ISR;  // MSI
+            else if (eff_pending[9]) prioritised_isr_cause = S_EXTERNAL_ISR;
+            else if (eff_pending[5]) prioritised_isr_cause = S_MACHINE_TIMER;
+            else if (eff_pending[1]) prioritised_isr_cause = S_SOFTWARE_ISR;
             else prioritised_isr_cause = trap_cause;
 
             supervisor_trap = mideleg_q[prioritised_isr_cause[4:0]];
         end else if (trap_taken) begin
             prioritised_isr_cause = trap_cause;
+            if (prioritised_isr_cause == M_CALL) begin
+                // decode blanket sets m_call, we need to adjust based on current priv
+                unique case (privilege)
+                    M_MODE: prioritised_isr_cause = M_CALL;
+                    U_MODE: prioritised_isr_cause = U_CALL;
+                    S_MODE: prioritised_isr_cause = S_CALL;
+                endcase
+
+            end
             // We're not using any trap causes > 31
-            supervisor_trap = medeleg_q[prioritised_isr_cause[4:0]];
+            supervisor_trap = (privilege != M_MODE) && medeleg_q[prioritised_isr_cause[4:0]];
         end
     end
 
@@ -161,7 +174,7 @@ module csr_regfile (
 
         // verilog_format: off
         mstatus = mstatus_q;
-        mstatush = mstatus_q;
+        mstatush = mstatush_q;
         mtvec = mtvec_q; mtvec_temp = '0;
         mie = mie_q;
         mepc = mepc_q;
@@ -183,7 +196,9 @@ module csr_regfile (
         satp = satp_q;
         // verilog_format: on
 
-        mip = (mip_t'(uart_isr) << 11) | (mip_t'(mtime_isr) << 7);
+        mip = mip_q;
+        mip[11] = uart_isr;
+        mip[7] = mtime_isr;
 
         if (!csr_rd_en && !csr_wr_en) begin
             ;  // Do nothing

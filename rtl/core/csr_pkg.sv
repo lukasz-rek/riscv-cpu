@@ -74,8 +74,11 @@ package csr_pkg;
     localparam CAUSE_TRAP = 1'b0;
 
     typedef enum logic [31:0] {
+        S_SOFTWARE_ISR = {CAUSE_ISR, 31'd1},
         M_SOFTWARE_ISR = {CAUSE_ISR, 31'd3},
+        S_MACHINE_TIMER = {CAUSE_ISR, 31'd5},
         M_MACHINE_TIMER = {CAUSE_ISR, 31'd7},
+        S_EXTERNAL_ISR = {CAUSE_ISR, 31'd9},
         M_EXTERNAL_ISR = {CAUSE_ISR, 31'd11},
         INSTR_ADDR_MALIGN = {CAUSE_TRAP, 31'd0},
         INSTR_ACCESS_FAULT = {CAUSE_TRAP, 31'd1},
