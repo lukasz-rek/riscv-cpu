@@ -2,10 +2,9 @@
 package csr_pkg;
 
     typedef enum logic [1:0] {
-        U_MODE,  // User
-        S_MODE,  // Supervisor
-        R_MODE,  // Reserved
-        M_MODE   // Machine
+        U_MODE = 2'b00,  // User
+        S_MODE = 2'b01,  // Supervisor
+        M_MODE = 2'b11   // Machine
     } csr_privilege_t;
 
 

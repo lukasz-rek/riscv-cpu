@@ -155,6 +155,7 @@ package core_pkg;
         logic [31:0] trap_val;
         logic trap_en;
         logic mret_en;
+        logic sret_en;
 
         // Branching
         logic branch_expects_zero;

@@ -108,6 +108,7 @@ module core (
     logic [31:0] trap_target;
     logic isr_pending;
     logic csr_bad;
+    logic sret_en;
 
     csr_regfile csr_regfile (
         .clk  (clk),
@@ -128,6 +129,7 @@ module core (
         .trap_val(trap_val),
         .mret_en(mret_en),
         .csr_bad(csr_bad),
+        .sret_en(sret_en),
 
         .trap_taken  (trap_taken),
         .trap_target (trap_target),
@@ -217,6 +219,7 @@ module core (
         .trap_val(trap_val),
         .mret_en(mret_en),
         .csr_bad(csr_bad),
+        .sret_en(sret_en),
 
 
 

@@ -334,6 +334,7 @@ module decode (
                                 temp_signals.trap_cause = BREAKPOINT;
                             end
                             12'b001100000010: temp_signals.mret_en = 1;
+                            12'b000100000010: temp_signals.sret_en = 1;
                             12'b000100000101: ;  // wfi is nop :/ sadge
                             default: illegal_instr(temp_signals);
                         endcase

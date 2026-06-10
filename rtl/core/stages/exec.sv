@@ -33,6 +33,7 @@ module exec (
     output logic [31:0] trap_pc,
     output logic [31:0] trap_val,
     output logic mret_en,
+    output logic sret_en,
     input logic csr_bad,
 
     input logic freeze,
@@ -100,7 +101,7 @@ module exec (
     // CSR writes, the branch flush, and exec_stall are *early* combinational outputs
     // that bypass that register, so they must be suppressed here.
     logic trap_servicing;
-    assign trap_servicing = trap_en | mret_en;
+    assign trap_servicing = trap_en | mret_en | sret_en;
 
     assign csr_addr = in_ctrl_signals.csr_addr;
     assign csr_rd_en = in_ctrl_signals.csr_rd_en && !trap_servicing;
@@ -117,7 +118,8 @@ module exec (
     // instead of from the ALU result (was the worst setup path / the trap_en BUFGCE net).
     logic              trap_detect;
     logic              mret_detect;
-    // logic              trap_stall_d;
+    logic              sret_detect;
+    logic              trap_stall_d;
     isr_cause_t        trap_cause_d;
     logic       [31:0] trap_pc_d;
     logic       [31:0] trap_val_d;
@@ -137,9 +139,10 @@ module exec (
         flush = 0;
         flush_pc = '0;
         exec_stall = '0;
-        trap_stall = 0;
+        trap_stall_d = '0;
         csr_input = '0;
         mret_detect = 0;
+        sret_detect = 0;
         trap_detect = 0;
         // Defaults keep these latch-free; only consumed when trap_detect=1.
         trap_cause_d = ILLEGAL_INSTR;
@@ -151,6 +154,13 @@ module exec (
         invalidate_reservation = 0;
         reservation_addr = '0;
         atomic_temp = atomic_temp_q;
+
+
+        if (trap_detect && !trap_service) begin
+            // squash what we have
+            temp_signals = '0;
+        end
+
 
 
         case (in_ctrl_signals.rs2_src)
@@ -168,10 +178,10 @@ module exec (
             alu_op = ALU_OFF;
             exec_stall = 1;
             temp_signals = '0;
-        end else if (in_ctrl_signals.trap_en || in_ctrl_signals.mret_en) begin
+        end else if (in_ctrl_signals.trap_en || in_ctrl_signals.mret_en || in_ctrl_signals.sret_en) begin
             alu_op = ALU_OFF;
             temp_signals = '0;  // squash
-            trap_stall = 1;
+            trap_stall_d = 1;
             if (in_ctrl_signals.trap_en) begin
                 trap_detect = 1;
                 trap_pc_d   = in_ctrl_signals.pc;
@@ -182,10 +192,11 @@ module exec (
                     trap_val_d = in_ctrl_signals.trap_val;
                 else trap_val_d = '0;
                 trap_cause_d = in_ctrl_signals.trap_cause;
-            end else begin
+            end else if (in_ctrl_signals.mret_en) begin
                 mret_detect = 1;
+            end else begin
+                sret_detect = 1;
             end
-
         end else begin
 
 
@@ -217,7 +228,7 @@ module exec (
                     end else if (in_ctrl_signals.rf_writeback == ALU_MEM_ADDR_WRITE_H) begin
                         if (temp_signals.mem_wr_addr[0]) begin
                             trap_detect = 1;
-                            trap_stall = 1;
+                            trap_stall_d = 1;
                             trap_pc_d = in_ctrl_signals.pc;
                             trap_val_d = temp_signals.mem_wr_addr;
                             trap_cause_d = STORE_ADDR_MALIGN;
@@ -228,7 +239,7 @@ module exec (
                     end else begin
                         if (temp_signals.mem_wr_addr[1:0] != 2'b00) begin
                             trap_detect = 1;
-                            trap_stall = 1;
+                            trap_stall_d = 1;
                             trap_pc_d = in_ctrl_signals.pc;
                             trap_val_d = temp_signals.mem_wr_addr;
                             trap_cause_d = STORE_ADDR_MALIGN;
@@ -248,7 +259,7 @@ module exec (
                         LW: begin
                             if (temp_signals.mem_addr2[1:0] != 2'b00) begin
                                 trap_detect = 1;
-                                trap_stall = 1;
+                                trap_stall_d = 1;
                                 trap_pc_d = in_ctrl_signals.pc;
                                 trap_val_d = temp_signals.mem_addr2;
                                 trap_cause_d = LOAD_ADDR_MALIGN;
@@ -257,7 +268,7 @@ module exec (
                         LH, LHU: begin
                             if (temp_signals.mem_addr2[0]) begin
                                 trap_detect = 1;
-                                trap_stall = 1;
+                                trap_stall_d = 1;
                                 trap_pc_d = in_ctrl_signals.pc;
                                 trap_val_d = temp_signals.mem_addr2;
                                 trap_cause_d = LOAD_ADDR_MALIGN;
@@ -277,7 +288,7 @@ module exec (
                     // but check trap triggered
                     if (alu_result[1]) begin
                         trap_detect = 1;
-                        trap_stall = 1;
+                        trap_stall_d = 1;
                         trap_pc_d = in_ctrl_signals.pc;
                         trap_val_d = alu_result & ~32'b1;
                         trap_cause_d = INSTR_ADDR_MALIGN;
@@ -309,7 +320,7 @@ module exec (
                     end else begin
                         // Trap bad csr access
                         trap_detect = 1;
-                        trap_stall = 1;
+                        trap_stall_d = 1;
                         trap_pc_d = in_ctrl_signals.pc;
                         trap_val_d = in_ctrl_signals.instr;
                         trap_cause_d = ILLEGAL_INSTR;
@@ -340,14 +351,7 @@ module exec (
             end
         end
 
-        // Suppress the younger instruction's early side-effects while a registered
-        // trap/mret redirect is in flight. flush would otherwise hijack the redirect
-        // (flush_latch outranks trap_taken in decode); exec_stall would block it and
-        // drop the single-cycle trap pulse entirely.
-        if (trap_servicing) begin
-            flush = 1'b0;
-            exec_stall = 1'b0;
-        end
+
 
     end
 
@@ -359,7 +363,7 @@ module exec (
         end else begin
             if (stall_D) begin
                 out_ctrl_signals <= out_ctrl_signals;
-            end else if (freeze || trap_detect || mret_detect || trap_en || mret_en) begin
+            end else if (freeze || trap_detect || mret_detect || trap_en || mret_en || sret_en) begin
                 // trap_detect/mret_detect: squash the faulting instruction itself (same
                 // cycle it is detected). trap_en/mret_en: squash the younger instruction
                 // that advanced into EXEC during the extra cycle before the (now
@@ -389,7 +393,8 @@ module exec (
         if (!rst_n) begin
             trap_en    <= 1'b0;
             mret_en    <= 1'b0;
-            // trap_stall <= 1'b0;
+            sret_en <= 1'b0;
+            trap_stall <= 1'b0;
             trap_cause <= ILLEGAL_INSTR;
             trap_pc    <= '0;
             trap_val   <= '0;
@@ -424,15 +429,20 @@ module exec (
                 reservation_addr_q  <= reservation_addr;
             end
 
-            if (stall_D) begin
+            if (trap_en && !trap_service) begin
                 // Hold the pending trap request across memory stalls.
                 trap_en <= trap_en;
                 mret_en <= mret_en;
-                // trap_stall <= trap_stall;
+                sret_en <= sret_en;
+                trap_stall <= trap_stall;
+                trap_cause <= trap_cause;
+                trap_pc    <= trap_pc;
+                trap_val   <= trap_val;
             end else begin
-                trap_en    <= trap_detect  & ~(trap_en | mret_en);
-                mret_en    <= mret_detect  & ~(trap_en | mret_en);
-                // trap_stall <= trap_stall_d & ~(trap_en | mret_en);
+                trap_en <= trap_detect;
+                mret_en <= mret_detect;
+                sret_en <= sret_detect;
+                trap_stall <= trap_stall_d;
                 trap_cause <= trap_cause_d;
                 trap_pc    <= trap_pc_d;
                 trap_val   <= trap_val_d;
