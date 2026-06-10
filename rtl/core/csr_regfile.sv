@@ -57,7 +57,7 @@ module csr_regfile (
         end else if (sret_en) begin
             trap_target = sepc_q.pc;
         end else if (supervisor_trap) begin
-            trap_target = (mtvec_q.mode == 2'b01) ?  // If vector mode, BASE + 4 * CAUSE
+            trap_target = (stvec_q.mode == 2'b01) ?  // If vector mode, BASE + 4 * CAUSE
             {stvec_q.base, 2'b00} + (32'(scause_q.code) << 2) : {stvec_q.base, 2'b00};
         end else begin
             trap_target = (mtvec_q.mode == 2'b01) ?
@@ -99,6 +99,7 @@ module csr_regfile (
     medelegh_t medelegh; medelegh_t medelegh_q;
     mideleg_t mideleg; mideleg_t mideleg_q;
     mcounteren_t mcounteren; mcounteren_t mcounteren_q;
+    mcountinhibit_t mcountinhibit; mcountinhibit_t mcountinhibit_q;
     // Supervisor CSRs
     sstatus_t sstatus_temp; sstatus_t sstatus_mask;
     assign sstatus_mask = 32'h818DE762; // Masks wpri fields
@@ -256,6 +257,10 @@ module csr_regfile (
                     satp = csr_wr_data;
                 end
                 // Machine Information Registers
+                12'hF14: begin
+                    // mhartid
+                    csr_rd_data = '0;  // This hart is always zero
+                end
                 // Machine Trap Setup
                 12'h300: begin
                     csr_rd_data = mstatus_q;
@@ -288,6 +293,12 @@ module csr_regfile (
                 end
                 12'h310: begin
                     csr_rd_data = mstatush;
+                end
+                // Machine Counter Setup
+                12'h320: begin
+                    // mcounterinhibit
+                    csr_rd_data = '0;
+
                 end
                 // Machine Trap Handling
                 12'h340: begin
@@ -395,7 +406,7 @@ module csr_regfile (
                         mstatus_q.mpie <= 1'b1;
                         privilege <= csr_privilege_t'(mstatus_q.mpp);
                         mstatus_q.mpp <= U_MODE;
-                        if (mstatus_q.mpp != M_MODE) mstatus_q.mprv <= 1'b1;
+                        if (mstatus_q.mpp != M_MODE) mstatus_q.mprv <= 1'b0;
                     end else if (sret_en) begin
                         mstatus_q.sie <= mstatus_q.spie;
                         mstatus_q.spie <= 1'b1;

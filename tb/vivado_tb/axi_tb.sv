@@ -277,8 +277,8 @@ module axi_tb;
         // Spoof uart ready to write
         slv_agent.mem_model.backdoor_memory_write_4byte(32'h10000014, 32'h00000060, 4'hF);
 
-        // load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
-        load_hex("/home/luki/Projekty/zephyr_cpu/zephyr.hex", 36'h8_4000_0000);
+        load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
+        // load_hex("/home/luki/Projekty/zephyr_cpu/zephyr.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/logs/arch/Zaamo-amoadd.w-00/Zaamo-amoadd.w-00.hex", 36'h8_4000_0000);
 

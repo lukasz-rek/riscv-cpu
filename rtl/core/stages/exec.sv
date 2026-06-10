@@ -156,11 +156,6 @@ module exec (
         atomic_temp = atomic_temp_q;
 
 
-        if (trap_detect && !trap_service) begin
-            // squash what we have
-            temp_signals = '0;
-        end
-
 
 
         case (in_ctrl_signals.rs2_src)
@@ -351,7 +346,12 @@ module exec (
             end
         end
 
-
+        // Don't let the instruction right after xret but before actual pc change to hijack execution
+        if (trap_servicing) begin
+            // squash what we have
+            flush = 1'b0;
+            exec_stall = 1'b0;
+        end
 
     end
 
@@ -429,19 +429,18 @@ module exec (
                 reservation_addr_q  <= reservation_addr;
             end
 
-            if (trap_en && !trap_service) begin
-                // Hold the pending trap request across memory stalls.
-                trap_en <= trap_en;
-                mret_en <= mret_en;
-                sret_en <= sret_en;
+            if (trap_servicing && !trap_service) begin
+                trap_en    <= trap_en;
+                mret_en    <= mret_en;
+                sret_en    <= sret_en;
                 trap_stall <= trap_stall;
                 trap_cause <= trap_cause;
                 trap_pc    <= trap_pc;
                 trap_val   <= trap_val;
             end else begin
-                trap_en <= trap_detect;
-                mret_en <= mret_detect;
-                sret_en <= sret_detect;
+                trap_en <= trap_detect & ~trap_servicing;
+                mret_en <= mret_detect & ~trap_servicing;
+                sret_en <= sret_detect & ~trap_servicing;
                 trap_stall <= trap_stall_d;
                 trap_cause <= trap_cause_d;
                 trap_pc    <= trap_pc_d;

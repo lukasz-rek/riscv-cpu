@@ -102,6 +102,13 @@ package csr_pkg;
         logic cy;
     } mcounteren_t;
 
+    typedef struct packed {
+        logic [28:0] hpm;
+        logic ir;
+        logic zero;
+        logic cy;
+    } mcountinhibit_t;
+
     typedef struct packed {logic [31:0] exception;} medeleg_t;
     typedef struct packed {logic [31:0] exception;} medelegh_t;
     typedef struct packed {logic [31:0] isr;} mideleg_t;
