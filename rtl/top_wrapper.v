@@ -110,12 +110,12 @@ module top_wrapper (
     assign axi_bus.rid     = m_axi_rid;
 
     top top_inst (
-        .clk(clk),
+        .clk  (clk),
         .rst_n(rst_n),
         .m_axi(axi_bus),
-        .meip(meip),
-        .mtip(mtip),
-        .msip(msip)
+        .meip (meip),
+        .mtip (mtip),
+        .msip (msip)
     );
 
 endmodule

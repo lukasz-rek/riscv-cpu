@@ -329,7 +329,10 @@ module exec (
                 // We done goofed up, we need to fluuuuuuuuuuuuuuuush
                 flush = 1;
                 flush_pc = in_ctrl_signals.pc + 4;
-                temp_signals = '0;  // Insert no ops later
+                temp_signals = '0;  // Insert no ops later, but keep pc/instr name
+                temp_signals.pc = in_ctrl_signals.pc;
+                temp_signals.instr = in_ctrl_signals.instr;
+                temp_signals.log_valid = in_ctrl_signals.log_valid;
             end
 
             // Handle exec stalls

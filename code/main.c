@@ -192,8 +192,8 @@ int main(void) {
     uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
     uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
     secs = 0;
-    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
-    __asm__ volatile ("csrsi mstatus, 0x8");
+    // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    // __asm__ volatile ("csrsi mstatus, 0x8");
 
 
     __asm__ volatile ("csrw mepc, %0" :: "r"(&supervisor_loop));

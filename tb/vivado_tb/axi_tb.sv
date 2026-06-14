@@ -181,9 +181,15 @@ module axi_tb;
     wire rf_wr_en = dut.top_inst.cpu.rf_stage.rf_wr_en;
 
     wire mem_stall_d = dut.top_inst.cpu.mem_stage.stall_D;
-    wire mem_wr_en = dut.top_inst.cpu.mem_stage.mem_wr_en;
-    wire [31:0] mem_wr_addr = dut.top_inst.cpu.mem_stage.mem_addr2;
-    wire [31:0] mem_wr_data = dut.top_inst.cpu.mem_stage.mem_wr_data;
+    wire mem_wr_en = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_wr_en;
+    wire [31:0] mem_wr_addr = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_wr_addr;
+    wire [31:0] mem_wr_data = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_wr_data;
+
+    wire mem_rd_en = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_rd_en;
+    wire [31:0] mem_rd_addr = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_addr2;
+
+    wire rf_wr_en = dut.top_inst.cpu.rf_stage.rf_wr_en;
+    wire [4:0] rf_addr = dut.top_inst.cpu.rf_stage.wr_addr;
 
     logic [31:0] exec_instr;
     logic [31:0] exec_pc;
@@ -376,18 +382,33 @@ module axi_tb;
     always @(posedge clk) begin
         if (axi_awvalid && axi_awready)
             last_awaddr <= axi_awaddr;
-        if (rf_wr_en) begin
-            $fwrite(trace_fd, "REG_ADDR=%02h  REG_DATA=%08h\n",
-                           rf_wr_addr, rf_wr_data);
-        end
-        if (!mem_stall_d && mem_wr_en) begin
-            $fwrite(trace_fd, "MEM_ADDR=%08h  MEM_DATA=%08h\n",
-                           mem_wr_addr, mem_wr_data);
-        end
+        // if (rf_wr_en) begin
+        //     $fwrite(trace_fd, "REG_ADDR=%02h  REG_DATA=%08h\n",
+        //                    rf_wr_addr, rf_wr_data);
+        // end
+        // if (!mem_stall_d && mem_wr_en) begin
+        //     $fwrite(trace_fd, "MEM_ADDR=%08h  MEM_DATA=%08h\n",
+        //                    mem_wr_addr, mem_wr_data);
+        // end
         if (commit_valid) begin
-            $fwrite(trace_fd, "PC=%08h  INSTR=%08h\n",
-                           commit_pc, commit_instr);
+            $fwrite(trace_fd, "core   0: 3 0x%08h (0x%08h)",
+                                   commit_pc, commit_instr);
+            if (rf_wr_en && rf_wr_addr != '0) begin
+                $fwrite(trace_fd, " x%-2d 0x%08h", rf_wr_addr, rf_wr_data);
+            end
+            if (mem_wr_en) begin
+                case (commit_instr[14:12]) // func3 for store ops
+                    3'b000: $fwrite(trace_fd, " mem 0x%08h 0x%02h", mem_wr_addr, mem_wr_data[7:0]);  // SB
+                    3'b001: $fwrite(trace_fd, " mem 0x%08h 0x%04h", mem_wr_addr, mem_wr_data[15:0]); // SH
+                    default: $fwrite(trace_fd, " mem 0x%08h 0x%08h", mem_wr_addr, mem_wr_data);      // SW
+                endcase
+            end else if (mem_rd_en) begin
+                $fwrite(trace_fd, " mem 0x%08h", mem_rd_addr);
+            end
+            $fwrite(trace_fd, "\n");
+
         end
+
     end
 
     always @(posedge clk) begin

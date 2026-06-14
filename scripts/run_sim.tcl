@@ -5,9 +5,7 @@ open_project vivado_proj/riscv_core.xpr
 
 # regen BD sim products if needed (cheap if already done)
 set bd [get_files axi_test.bd]
-reset_target simulation $bd
-generate_target -force simulation $bd
-export_ip_user_files -of_objects $bd -no_script -sync -force -quiet
+generate_target Simulation $bd
 
 # point sim_1 at the requested top
 set_property top $top [get_filesets sim_1]
@@ -26,4 +24,3 @@ if {$runtime eq "all"} {
 }
 
 launch_simulation
-close_project
