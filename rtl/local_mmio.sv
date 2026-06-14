@@ -14,7 +14,8 @@ module local_mmio (
 
     input logic [31:0] rd_data_d,
     output logic [31:0] rd_data,
-    output logic mtime_isr
+    output logic mtime_isr,
+    output logic msip_isr
 );
 
     localparam logic [31:0] clint_base = 32'h0200_0000;
@@ -41,6 +42,9 @@ module local_mmio (
         if (rd_en || wr_en) begin
             mmio_en = 1;
             case (addr)
+                clint_base: begin
+                    mmio_rd_data = {31'b0, msip_isr};
+                end
                 clint_base + 32'h0000_4000: begin
                     // mtimecmp lo
                     if (wr_en) mtimecmp[31:0] = wr_data;
@@ -68,11 +72,13 @@ module local_mmio (
             mtime <= '0;
             mtimecmp_q <= '1;
             mmio_en_q <= 0;
+            msip_isr <= '0;
         end else begin
             mtime <= mtime + 1;
             mtimecmp_q <= mtimecmp;
             mmio_en_q <= mmio_en;
             mmio_rd_data_q <= mmio_rd_data;
+            msip_isr <= (addr == clint_base && wr_en) ? wr_data[0] : msip_isr;
         end
     end
 

@@ -24,7 +24,8 @@ module core (
 
     // ISRs
     input logic mtime_isr,
-    input logic uart_isr
+    input logic uart_isr,
+    input logic msip_isr
 );
 
 
@@ -136,7 +137,8 @@ module core (
         .trap_pending(isr_pending),
 
         .mtime_isr(mtime_isr),
-        .uart_isr (uart_isr)
+        .uart_isr (uart_isr),
+        .msip_isr (msip_isr)
     );
 
 

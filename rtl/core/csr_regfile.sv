@@ -34,7 +34,8 @@ module csr_regfile (
 
     // ISR signals
     input logic mtime_isr,
-    input logic uart_isr
+    input logic uart_isr,
+    input logic msip_isr
 );
 
     // Decode addr
@@ -76,12 +77,17 @@ module csr_regfile (
         mxl: 2'b01,  // RV32
         zero: 4'b0,
         extensions:
-        26'h0 | (
+        26'h1 | (  // first bit for atomic extension
         1 << 8
         )  // I
         | (
         1 << 12
         )  // M
+        | (
+        1 << 18  // S mode
+        ) | (
+        1 << 20  // U mode
+        )
     };  // misa
     logic [63:0] mcycle;
     logic [63:0] minstret;
@@ -183,6 +189,7 @@ module csr_regfile (
         mtval = mtval_q;
         mideleg = mideleg_q;
         medeleg = medeleg_q;
+        mcounteren = mcounteren_q;
         // Supervisor
         sstatus_temp = '0;
         sie_temp = '0;
@@ -199,6 +206,7 @@ module csr_regfile (
         mip = mip_q;
         mip[11] = uart_isr;
         mip[7] = mtime_isr;
+        mip[3] = msip_isr;
 
         if (!csr_rd_en && !csr_wr_en) begin
             ;  // Do nothing
@@ -263,7 +271,8 @@ module csr_regfile (
                 end
                 12'h144: begin
                     csr_rd_data = mip_q & sip_mask;
-
+                    sip_temp = sip_t'(csr_wr_data) & sip_mask;
+                    mip[1] = sip_temp[1];  // SSIP writable from S-mode
                 end
                 // Supervisor Address Protection and Translation
                 12'h180: begin
@@ -272,9 +281,9 @@ module csr_regfile (
                     satp = csr_wr_data;
                 end
                 // Machine Information Registers
-                12'hF14: begin
-                    // mhartid
-                    csr_rd_data = '0;  // This hart is always zero
+                12'hF11, 12'hF12, 12'hF13, 12'hF14: begin
+                    // mvendorid, marchid, mimpid, mhartid
+                    csr_rd_data = '0;
                 end
                 // Machine Trap Setup
                 12'h300: begin
@@ -305,6 +314,10 @@ module csr_regfile (
                     end
                     mtvec.base = mtvec_temp.base;
 
+                end
+                12'h306: begin
+                    csr_rd_data = mcounteren_q;
+                    mcounteren  = scounteren_t'(csr_wr_data);
                 end
                 12'h310: begin
                     csr_rd_data = mstatush;
@@ -378,6 +391,7 @@ module csr_regfile (
             mepc_q <= '0;
             mcause_q <= '0;
             mscratch_q <= '0;
+            mcounteren_q <= '0;
             mtval_q <= '0;
             medeleg_q <= '0;
             mideleg_q <= '0;
@@ -444,6 +458,7 @@ module csr_regfile (
                     mtval_q <= mtval;
                     mideleg_q <= mideleg;
                     medeleg_q <= medeleg;
+                    mcounteren_q <= mcounteren;
 
                     scounteren_q <= scounteren;
                     stvec_q <= stvec;

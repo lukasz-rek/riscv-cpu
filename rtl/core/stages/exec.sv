@@ -104,8 +104,8 @@ module exec (
     assign trap_servicing = trap_en | mret_en | sret_en;
 
     assign csr_addr = in_ctrl_signals.csr_addr;
-    assign csr_rd_en = in_ctrl_signals.csr_rd_en && !trap_servicing;
-    assign csr_wr_en = in_ctrl_signals.csr_wr_en && !trap_servicing;
+    assign csr_rd_en = in_ctrl_signals.csr_rd_en && !trap_servicing && !exec_stall;
+    assign csr_wr_en = in_ctrl_signals.csr_wr_en && !trap_servicing && !exec_stall;
 
     assign alu_div_active = (alu_op == ALU_DIV || alu_op == ALU_DIVU || alu_op == ALU_REM || alu_op == ALU_REMU);
 

@@ -7,7 +7,10 @@ module axi_tb;
 
     logic clk   = 0;
     logic rst_n = 0;
-    logic uart_tx;
+
+    wire msip;
+    wire mtip;
+    wire meip;
 
     always #8.62 clk = ~clk; // ~58 MHz
 
@@ -62,7 +65,9 @@ module axi_tb;
     top_wrapper dut (
         .clk             (clk),
         .rst_n           (rst_n),
-        .uart_isr(0),
+        .mtip(mtip),
+        .msip(msip),
+        .meip(meip),
         // AR
         .m_axi_araddr    (axi_araddr),
         .m_axi_arlen     (axi_arlen),
@@ -113,6 +118,9 @@ module axi_tb;
     axi_test_wrapper vip_inst (
         .aclk_0             (clk),
         .aresetn_0          (rst_n),
+        .msip(msip),
+        .mtip(mtip),
+        .meip(meip),
         // AR
         .S_AXI_0_araddr     (axi_araddr),
         .S_AXI_0_arlen      (axi_arlen),
@@ -122,7 +130,6 @@ module axi_tb;
         .S_AXI_0_arcache    (axi_arcache),
         .S_AXI_0_arprot     (axi_arprot),
         .S_AXI_0_arqos      (axi_arqos),
-        .S_AXI_0_arregion   (4'b0),
         .S_AXI_0_arvalid    (axi_arvalid),
         .S_AXI_0_arready    (axi_arready),
         // R
@@ -140,7 +147,6 @@ module axi_tb;
         .S_AXI_0_awcache    (axi_awcache),
         .S_AXI_0_awprot     (axi_awprot),
         .S_AXI_0_awqos      (axi_awqos),
-        .S_AXI_0_awregion   (4'b0),
         .S_AXI_0_awvalid    (axi_awvalid),
         .S_AXI_0_awready    (axi_awready),
         // W
@@ -279,6 +285,7 @@ module axi_tb;
 
         load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/zephyr_cpu/zephyr.hex", 36'h8_4000_0000);
+        // load_hex("/home/luki/Projekty/linux_cpu/buildroot/fw_payload.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/logs/arch/Zaamo-amoadd.w-00/Zaamo-amoadd.w-00.hex", 36'h8_4000_0000);
 
@@ -289,7 +296,7 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #4_000_000;
+        #1_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;
