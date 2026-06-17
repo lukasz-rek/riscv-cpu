@@ -8,6 +8,7 @@ module top #(
     input logic meip,
     input logic mtip,
     input logic msip,
+    input logic seip,
 
 
     axi_if.master m_axi
@@ -52,8 +53,9 @@ module top #(
         .flush_I(flush_I),
 
         .mtime_isr(mtip),
-        .uart_isr (meip),
-        .msip_isr (msip)
+        .meip_isr (meip),
+        .msip_isr (msip),
+        .seip_isr (seip)
     );
 
 

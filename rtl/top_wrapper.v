@@ -1,9 +1,10 @@
 module top_wrapper (
     input wire clk,
     input wire rst_n,
-    input wire meip,
     input wire mtip,
     input wire msip,
+    input wire meip,
+    input wire seip,
 
     // Flat AXI ports — BD sees these
     output wire [35:0] m_axi_awaddr,
@@ -113,9 +114,10 @@ module top_wrapper (
         .clk  (clk),
         .rst_n(rst_n),
         .m_axi(axi_bus),
-        .meip (meip),
         .mtip (mtip),
-        .msip (msip)
+        .msip (msip),
+        .meip (meip),
+        .seip (seip)
     );
 
 endmodule

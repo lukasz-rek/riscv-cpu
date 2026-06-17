@@ -1,0 +1,76 @@
+/dts-v1/;
+
+/ {
+    #address-cells = <1>;
+    #size-cells = <1>;
+    model = "Luki Plyta";
+    compatible = "luki,plyta";
+
+    chosen {
+        zephyr,sram       = &ram0;
+        zephyr,console    = &uart0;
+        zephyr,shell-uart = &uart0;
+    };
+
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        cpu0: cpu@0 {
+            compatible = "riscv";
+            device_type = "cpu";
+            reg = <0>;
+            riscv,isa-base = "rv32i";
+            riscv,isa-extensions = "m,zicsr,a";
+            clock-frequency = <120000000>;
+
+            intc: interrupt-controller {
+                compatible = "riscv,cpu-intc";
+                #interrupt-cells = <1>;
+                interrupt-controller;
+            };
+        };
+    };
+
+    /* 1 GB at 0x80000000 */
+    ram0: memory@80000000 {
+        device_type = "memory";
+        compatible = "mmio-sram";
+        reg = <0x80000000 0x40000000>;
+    };
+
+    /* Standard RISC-V PLIC at 0x0C000000 */
+    plic: interrupt-controller@c000000 {
+        compatible = "sifive,plic-1.0.0";
+        #interrupt-cells = <2>;
+        interrupt-controller;
+        reg = <0x0C000000 0x400000>; /* Maps the standard 4MB PLIC register space */
+        interrupts-extended = <&intc 11>;
+        riscv,max-priority = <7>;
+        riscv,ndev = <2>;
+    };
+
+    mtimer: timer@200bff8 {
+        compatible = "riscv,machine-timer";
+        reg = <0x200bff8 0x8
+               0x2004000 0x8>;
+        reg-names = "mtime", "mtimecmp";
+        interrupts-extended = <&intc 7>;
+    };
+
+    /* ns16550 UART routed through the PLIC */
+    uart0: uart@10000000 {
+        compatible = "ns16550";
+        reg = <0x10000000 0x20>;
+        reg-shift = <2>;
+	// reg-io-width = <4>;
+        clock-frequency = <120000000>;
+        current-speed = <115200>;
+        interrupts = <1 1>; /* Interrupt ID 1, Priority 1 */
+        interrupt-parent = <&plic>;
+        status = "okay";
+    };
+};
+
+
+

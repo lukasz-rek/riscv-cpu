@@ -34,8 +34,9 @@ module csr_regfile (
 
     // ISR signals
     input logic mtime_isr,
-    input logic uart_isr,
-    input logic msip_isr
+    input logic meip_isr,
+    input logic msip_isr,
+    input logic seip_isr
 );
 
     // Decode addr
@@ -204,9 +205,10 @@ module csr_regfile (
         // verilog_format: on
 
         mip = mip_q;
-        mip[11] = uart_isr;
+        mip[11] = meip_isr;
         mip[7] = mtime_isr;
         mip[3] = msip_isr;
+        mip[9] = seip_isr;
 
         if (!csr_rd_en && !csr_wr_en) begin
             ;  // Do nothing
@@ -351,7 +353,7 @@ module csr_regfile (
                     csr_rd_data = mip_q;
 
                     // SEIP
-                    mip[9] = csr_wr_data[9];
+                    // mip[9] = csr_wr_data[9];
                     // STIP
                     mip[5] = csr_wr_data[5];
                     // SSIP

@@ -24,13 +24,21 @@
 #define LSR_THRE  (1 << 5)
 #define LSR_DR    (1 << 0)
 
+#define PLIC_BASE     0x0C000000UL
+#define PLIC_PRIO(n)  (*(volatile uint32_t *)(PLIC_BASE + 4*(n)))
+#define PLIC_ENABLE0  (*(volatile uint32_t *)(PLIC_BASE + 0x2000))
+#define PLIC_THRESH0  (*(volatile uint32_t *)(PLIC_BASE + 0x200000))
+#define PLIC_CLAIM0   (*(volatile uint32_t *)(PLIC_BASE + 0x200004))
+
+#define UART_IRQ 1
+
 #define UART_BAUD           115200
 #define UART_DIVISOR_BAUD(freq, baud)  (((freq) + (16 * (baud)) / 2) / (16 * (baud)))
-#define EE_TICKS_PER_SEC           100000000
+#define EE_TICKS_PER_SEC           120000000
 
 #define UART_DIVISOR  UART_DIVISOR_BAUD(EE_TICKS_PER_SEC, UART_BAUD)
 
-#define TIMER_INTERVAL 5314
+#define TIMER_INTERVAL 120000000
 
 void uart_init(void) {
     UART_LCR = LCR_DLAB;
@@ -128,11 +136,15 @@ void supervisor_trap_handler(void) {
             print_hex(secs);
             uart_putc('\n');
         } else if (code == 11) {
-            // Drain RX FIFO and echo — loop until IIR says no interrupt pending
+            uint32_t claimed = PLIC_CLAIM0;          // claim — which source fired?
+            uart_puts("PLIC claim=0x"); print_hex(claimed);
+
             while (!(UART_IIR & IIR_NO_INT)) {
                 if (UART_LSR & LSR_DR)
                     uart_putc((char)(UART_RBR & 0xFF));
             }
+
+            PLIC_CLAIM0 = claimed;                   // complete
         }
     } else {
         uint32_t sepc, stval;
@@ -167,7 +179,11 @@ void trap_init(void) {
         "csrw stvec, t0\n"
     );
 }
-
+void plic_init(void) {
+    PLIC_PRIO(UART_IRQ) = 1;          // priority 1 for UART source
+    PLIC_ENABLE0 = (1u << UART_IRQ);  // enable source 1 on context 0
+    PLIC_THRESH0 = 0;                 // let any priority > 0 through
+}
 void print_5(void) {
     print_hex(0x5);
 }
@@ -179,6 +195,7 @@ void print_D(void) {
 int main(void) {
     uart_init();
     trap_init();
+    plic_init();
 
     uart_puts("echo ready\r\n");
         __asm__ volatile ("li t0, 0x800; csrs mie, t0");  // MEIE = mie[11]
@@ -192,17 +209,17 @@ int main(void) {
     uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
     uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
     secs = 0;
-    // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
-    // __asm__ volatile ("csrsi mstatus, 0x8");
+    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    __asm__ volatile ("csrsi mstatus, 0x8");
 
 
-    __asm__ volatile ("csrw mepc, %0" :: "r"(&supervisor_loop));
-    __asm__ volatile ("csrc mstatus, %0" :: "r"(0x1800));
-    __asm__ volatile ("csrs mstatus, %0" :: "r"(0x800));
-    __asm__ volatile ("csrs medeleg, %0" :: "r"(1 << 2)); // Medeleg for bad instr
-    __asm__ volatile("mret");
+    // __asm__ volatile ("csrw mepc, %0" :: "r"(&supervisor_loop));
+    // __asm__ volatile ("csrc mstatus, %0" :: "r"(0x1800));
+    // __asm__ volatile ("csrs mstatus, %0" :: "r"(0x800));
+    // __asm__ volatile ("csrs medeleg, %0" :: "r"(1 << 2)); // Medeleg for bad instr
+    // __asm__ volatile("mret");
 
-    uart_puts("Still in machine\n");
+    // uart_puts("Still in machine\n");
 
     while(1) {
         asm volatile("nop");

@@ -11,6 +11,27 @@ set_property SLEW SLOW [get_ports uart_tx]
 set_property DRIVE 4 [get_ports uart_tx]
 set_false_path -to [get_ports uart_tx]
 
-set_property PACKAGE_PIN E10      [get_ports uart_rx]
-set_property IOSTANDARD  LVCMOS33 [get_ports uart_rx]
+set_property PACKAGE_PIN E10 [get_ports uart_rx]
+set_property IOSTANDARD LVCMOS33 [get_ports uart_rx]
 set_false_path -from [get_ports uart_rx]
+
+create_pblock pblock_RISC_V_CPU
+add_cells_to_pblock [get_pblocks pblock_RISC_V_CPU] [get_cells -quiet [list system_i/RISC_V_CPU]]
+resize_pblock [get_pblocks pblock_RISC_V_CPU] -add {SLICE_X23Y60:SLICE_X60Y179 \
+                                                    BUFG_GT_X0Y24:BUFG_GT_X0Y71 \
+                                                    BUFG_GT_SYNC_X0Y15:BUFG_GT_SYNC_X0Y44 \
+                                                    CONFIG_SITE_X0Y0:CONFIG_SITE_X0Y0 \
+                                                    DSP48E2_X6Y24:DSP48E2_X12Y71 \
+                                                    GTHE4_CHANNEL_X0Y4:GTHE4_CHANNEL_X0Y11 \
+                                                    GTHE4_COMMON_X0Y1:GTHE4_COMMON_X0Y2 \
+                                                    PCIE40E4_X0Y1:PCIE40E4_X0Y1 \
+                                                    RAMB18_X0Y24:RAMB18_X2Y71 \
+                                                    RAMB36_X0Y12:RAMB36_X2Y35 \
+                                                    URAM288_X0Y16:URAM288_X0Y47 \
+}
+create_pblock pblock_smartconnect_0
+add_cells_to_pblock [get_pblocks pblock_smartconnect_0] [get_cells -quiet [list system_i/smartconnect_0]]
+resize_pblock [get_pblocks pblock_smartconnect_0] -add {SLICE_X0Y60:SLICE_X22Y179 \
+                                                        DSP48E2_X0Y24:DSP48E2_X5Y71 \
+                                                        IOB_X0Y52:IOB_X1Y155 \
+}
