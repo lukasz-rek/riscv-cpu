@@ -205,9 +205,9 @@ int main(void) {
         // Arm timer before enabling interrupts
     write_timecmp(read_mtime() + TIMER_INTERVAL);
 
-    uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
-    uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
-    uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
+    // uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
+    // uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
+    // uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
     secs = 0;
     __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
     __asm__ volatile ("csrsi mstatus, 0x8");
@@ -219,7 +219,20 @@ int main(void) {
     // __asm__ volatile ("csrs medeleg, %0" :: "r"(1 << 2)); // Medeleg for bad instr
     // __asm__ volatile("mret");
 
+
+
+
     // uart_puts("Still in machine\n");
+
+    uint32_t time_lo, time_hi, time_hi2;
+    do {
+        asm volatile ("csrr %0, timeh" : "=r"(time_hi));
+        asm volatile ("csrr %0, time"  : "=r"(time_lo));
+        asm volatile ("csrr %0, timeh" : "=r"(time_hi2));
+    } while (time_hi != time_hi2);
+
+    uart_puts("time_lo=0x");  print_hex(time_lo);  uart_puts("\r\n");
+    uart_puts("time_hi=0x");  print_hex(time_hi);  uart_puts("\r\n");
 
     while(1) {
         asm volatile("nop");

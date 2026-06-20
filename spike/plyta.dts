@@ -3,7 +3,7 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 	model = "Luki Plyta";
-	compatible = "luki,plyta";
+	compatible = "luki,plyta,riscv";
 	chosen {
 		stdout-path = &uart0;
 		bootargs = "console=ttyS0,115200n8 earlycon=uart8250,mmio32,0x10000000,115200n8";
@@ -13,18 +13,24 @@
 		#size-cells = <0>;
 		timebase-frequency = <140000000>;
 		cpu0: cpu@0 {
+			mmu-type = "riscv,sbare";
 			compatible = "riscv";
 			device_type = "cpu";
 			reg = <0>;
 			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "m", "a", "zicsr", "zifencei";
-			riscv,isa = "rv32ima_zicsr_zifencei";
+			riscv,isa-extensions = "m", "a", "zicsr", "zifencei", "zicntr";
+			riscv,isa = "rv32ima_zicsr_zifencei_zicntr";
 			intc: interrupt-controller {
 				compatible = "riscv,cpu-intc";
 				interrupt-controller;
 				#interrupt-cells = <1>;
 			};
+			timer {
+        compatible = "riscv,timer";
+        interrupts-extended = <&intc 5>, <&intc 7>;
+    };
 		};
+			
 	};
 	memory@80000000 {
 		device_type = "memory";
@@ -37,22 +43,33 @@
 		                      <&intc 7>;	/* MTIP */
 	};
 	plic0: interrupt-controller@c000000 {
-		compatible = "riscv,plic0";
-		reg = <0x0c000000 0x04000000>;
-		interrupt-controller;
-		#address-cells = <0>;
-		#interrupt-cells = <2>;
-		riscv,ndev = <2>;
-		interrupts-extended = <&intc 11>;	/* M-mode external (context 0) */
-		                     /* S-mode external (context 1) */
-	};
+    compatible = "riscv,plic0";
+    reg = <0x0c000000 0x04000000>;
+    interrupt-controller;
+    #address-cells = <0>;
+    #interrupt-cells = <1>;
+    riscv,ndev = <2>;
+    interrupts-extended = <&intc 11>, <&intc 9>;
+};
+		
 	uart0: uart@10000000 {
 		compatible = "ns16550a";
-		reg = <0x10000000 0x20>;
+		reg = <0x10000000 0x100>;
 		reg-shift = <2>;
+		reg-io-width = <4>;
 		clock-frequency = <140000000>;
 		current-speed = <115200>;
 		interrupt-parent = <&plic0>;
 		interrupts = <1>;
 	};
+	// uart0: uart@10000000 {
+ //        compatible = "ns16550a";
+ //        reg = <0x0 0x10000000 0x0 0x100>;
+ //        	clock-frequency = <140000000>;
+	// 	current-speed = <115200>;
+	// 	interrupt-parent = <&plic0>;
+	// 	interrupts = <1>;
+ //        reg-shift = <2>;
+ //        // reg-io-width = <1>;
+ //    };
 };
