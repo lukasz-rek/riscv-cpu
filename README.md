@@ -1,4 +1,4 @@
-This is just a riscv32 + extensions CPU I'm making for (sometimes questionable) fun. The initial goal was to try out some Out of Order execution/Tomasulo stuff that make up modern fast computers but I went on a sidequest to port Linux to this core. Currently it runs noMMU Linux and Zephyr RTOS and baremetal programs/benchmarks.
+This is just a riscv32 + extensions CPU I'm making for (sometimes questionable) fun. The initial goal was to try out some Out of Order execution/Tomasulo stuff that make up modern fast computers but I went on a sidequest to port Linux to this core. Currently it runs noMMU Linux (not perfectly) and Zephyr RTOS and baremetal programs/benchmarks.
 
 # Current stats
 
@@ -87,6 +87,8 @@ Use the board/soc files in the /zephyr folder. Then `west build - b plyta` with 
 # Linux
 
 Use .config folders in Linux for Buildroot/Linux/uclib/busybox. Note that noMMU Linux is not exactly the intended way to run Linux so some trickery may be required. My hint is to select all the options that simplify memory allocation/process spawning but the names may have changed from what I have.
+
+An in the end, noMMU linux has quirks. For me not all binaries run and I don't see a point in fiddling to recomplie all of them within buildroots system. Also there seem to be tiny discrepancies between spike and actual board. Would not recommend this as daily driver lol.
  
 # Remaining improvements
 - [ ] Add MMU stage -> should make Linux much more usable
