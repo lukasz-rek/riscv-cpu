@@ -24,13 +24,21 @@
 #define LSR_THRE  (1 << 5)
 #define LSR_DR    (1 << 0)
 
+#define PLIC_BASE     0x0C000000UL
+#define PLIC_PRIO(n)  (*(volatile uint32_t *)(PLIC_BASE + 4*(n)))
+#define PLIC_ENABLE0  (*(volatile uint32_t *)(PLIC_BASE + 0x2000))
+#define PLIC_THRESH0  (*(volatile uint32_t *)(PLIC_BASE + 0x200000))
+#define PLIC_CLAIM0   (*(volatile uint32_t *)(PLIC_BASE + 0x200004))
+
+#define UART_IRQ 1
+
 #define UART_BAUD           115200
 #define UART_DIVISOR_BAUD(freq, baud)  (((freq) + (16 * (baud)) / 2) / (16 * (baud)))
-#define EE_TICKS_PER_SEC           100000000
+#define EE_TICKS_PER_SEC           120000000
 
 #define UART_DIVISOR  UART_DIVISOR_BAUD(EE_TICKS_PER_SEC, UART_BAUD)
 
-#define TIMER_INTERVAL 5314
+#define TIMER_INTERVAL 120000000
 
 void uart_init(void) {
     UART_LCR = LCR_DLAB;
@@ -84,7 +92,7 @@ static inline void write_timecmp(uint64_t next) {
 uint32_t secs;
 
 __attribute__((interrupt("machine")))
-void trap_handler(void) {
+void machine_trap_handler(void) {
     uint32_t mcause;
     __asm__ volatile ("csrr %0, mcause" : "=r"(mcause));
     if (mcause & 0x80000000) {
@@ -115,13 +123,67 @@ void trap_handler(void) {
     }
 }
 
-void trap_init(void) {
-    __asm__ volatile (
-        "la t0, trap_handler\n"
-        "csrw mtvec, t0\n"
-    );
+__attribute__((interrupt("supervisor")))
+void supervisor_trap_handler(void) {
+    uint32_t scause;
+    __asm__ volatile ("csrr %0, scause" : "=r"(scause));
+    if (scause & 0x80000000) {
+        uint32_t code = scause & 0x7FFFFFFF;
+        if (code == 7) {
+            secs++;
+            write_timecmp(read_mtime() + TIMER_INTERVAL);
+            uart_puts("TIMER ");
+            print_hex(secs);
+            uart_putc('\n');
+        } else if (code == 11) {
+            uint32_t claimed = PLIC_CLAIM0;          // claim — which source fired?
+            uart_puts("PLIC claim=0x"); print_hex(claimed);
+
+            while (!(UART_IIR & IIR_NO_INT)) {
+                if (UART_LSR & LSR_DR)
+                    uart_putc((char)(UART_RBR & 0xFF));
+            }
+
+            PLIC_CLAIM0 = claimed;                   // complete
+        }
+    } else {
+        uint32_t sepc, stval;
+        __asm__ volatile ("csrr %0, sepc"  : "=r"(sepc));
+        __asm__ volatile ("csrr %0, stval" : "=r"(stval));
+        uart_puts("TRAP! scause=0x"); print_hex(scause);
+        uart_puts(" pc=0x");          print_hex(sepc);
+        uart_puts(" stval=0x");       print_hex(stval);
+        uart_puts("\r\n");
+        __asm__ volatile ("csrw sepc, %0"  :: "r"(sepc + 4));
+        // while (1) {}
+    }
 }
 
+void supervisor_loop(void) {
+    while(1) {
+        uart_puts("super-vibing\n");
+        for(int i = 0; i < 1000; i++) {
+            asm volatile("nop");
+        }
+    }
+
+}
+
+void trap_init(void) {
+    __asm__ volatile (
+        "la t0, machine_trap_handler\n"
+        "csrw mtvec, t0\n"
+    );
+    __asm__ volatile (
+        "la t0, supervisor_trap_handler\n"
+        "csrw stvec, t0\n"
+    );
+}
+void plic_init(void) {
+    PLIC_PRIO(UART_IRQ) = 1;          // priority 1 for UART source
+    PLIC_ENABLE0 = (1u << UART_IRQ);  // enable source 1 on context 0
+    PLIC_THRESH0 = 0;                 // let any priority > 0 through
+}
 void print_5(void) {
     print_hex(0x5);
 }
@@ -133,6 +195,7 @@ void print_D(void) {
 int main(void) {
     uart_init();
     trap_init();
+    plic_init();
 
     uart_puts("echo ready\r\n");
         __asm__ volatile ("li t0, 0x800; csrs mie, t0");  // MEIE = mie[11]
@@ -142,56 +205,34 @@ int main(void) {
         // Arm timer before enabling interrupts
     write_timecmp(read_mtime() + TIMER_INTERVAL);
 
-    uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
-    uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
-    uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
+    // uart_puts("mtime_lo=0x");  print_hex(MTIME_LO);   uart_puts("\r\n");
+    // uart_puts("timecmp_lo=0x"); print_hex(TIMECMP_LO); uart_puts("\r\n");
+    // uart_puts("timecmp_hi=0x"); print_hex(TIMECMP_HI); uart_puts("\r\n");
     secs = 0;
-    // __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
-    // __asm__ volatile ("csrsi mstatus, 0x8");
+    __asm__ volatile ("li t0, 0x80; csrs mie, t0");   // enable MTIE
+    __asm__ volatile ("csrsi mstatus, 0x8");
+
+
+    // __asm__ volatile ("csrw mepc, %0" :: "r"(&supervisor_loop));
+    // __asm__ volatile ("csrc mstatus, %0" :: "r"(0x1800));
+    // __asm__ volatile ("csrs mstatus, %0" :: "r"(0x800));
+    // __asm__ volatile ("csrs medeleg, %0" :: "r"(1 << 2)); // Medeleg for bad instr
+    // __asm__ volatile("mret");
 
 
 
 
+    // uart_puts("Still in machine\n");
 
+    uint32_t time_lo, time_hi, time_hi2;
+    do {
+        asm volatile ("csrr %0, timeh" : "=r"(time_hi));
+        asm volatile ("csrr %0, time"  : "=r"(time_lo));
+        asm volatile ("csrr %0, timeh" : "=r"(time_hi2));
+    } while (time_hi != time_hi2);
 
-    // static uint32_t dst[2];
-    //     asm volatile (
-    //         "addi %0, %0, 2\n\t"   // misalign by 2 (halfword boundary, not word)
-    //         "sw t0, 0(%0)"
-    //         : "+r"(dst)
-    //         :: "memory"
-    //     );
-
-   // uint32_t special = 7;
-   // uint32_t special_reg = INT32_MAX;
-   // uint32_t value_to_store = 5;
-   // uint32_t cond_out = INT32_MAX;
-
-   // asm volatile (
-   //     "lr.w %0, (%1)" : "=&r" (special_reg) : "r" (&special) : "memory");
-
-   // asm volatile ( "sc.w %0, %1, (%2)" : "=&r" (cond_out) : "r" (value_to_store), "r" (&special) : "memory");
-
-   // print_hex(special_reg);
-   // print_hex(special);
-   // print_hex(cond_out);
-
-   uint32_t op1 = 7;
-   uint32_t op2 = 32;
-
-   uint32_t out = INT32_MAX;
-
-   uart_puts("Before: \n");
-   print_hex(op1);
-   print_hex(op2);
-   print_hex(out);
-
-   asm volatile ("amoswap.w %0, %1, (%2)" : "=&r" (out) : "r" (op1), "r" (&op2));
-
-   uart_puts("After: \n");
-   print_hex(op1);
-   print_hex(op2);
-   print_hex(out);
+    uart_puts("time_lo=0x");  print_hex(time_lo);  uart_puts("\r\n");
+    uart_puts("time_hi=0x");  print_hex(time_hi);  uart_puts("\r\n");
 
     while(1) {
         asm volatile("nop");

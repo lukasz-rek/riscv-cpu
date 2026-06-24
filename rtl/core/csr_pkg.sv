@@ -2,10 +2,9 @@
 package csr_pkg;
 
     typedef enum logic [1:0] {
-        U_MODE,  // User
-        S_MODE,  // Supervisor
-        R_MODE,  // Reserved
-        M_MODE   // Machine
+        U_MODE = 2'b00,  // User
+        S_MODE = 2'b01,  // Supervisor
+        M_MODE = 2'b11   // Machine
     } csr_privilege_t;
 
 
@@ -75,8 +74,11 @@ package csr_pkg;
     localparam CAUSE_TRAP = 1'b0;
 
     typedef enum logic [31:0] {
+        S_SOFTWARE_ISR = {CAUSE_ISR, 31'd1},
         M_SOFTWARE_ISR = {CAUSE_ISR, 31'd3},
+        S_MACHINE_TIMER = {CAUSE_ISR, 31'd5},
         M_MACHINE_TIMER = {CAUSE_ISR, 31'd7},
+        S_EXTERNAL_ISR = {CAUSE_ISR, 31'd9},
         M_EXTERNAL_ISR = {CAUSE_ISR, 31'd11},
         INSTR_ADDR_MALIGN = {CAUSE_TRAP, 31'd0},
         INSTR_ACCESS_FAULT = {CAUSE_TRAP, 31'd1},
@@ -96,6 +98,75 @@ package csr_pkg;
 
     typedef struct packed {logic [31:0] value;} mtval_t;
 
+    typedef struct packed {
+        logic [28:0] hpm;
+        logic ir;
+        logic tm;
+        logic cy;
+    } mcounteren_t;
 
+    typedef struct packed {
+        logic [28:0] hpm;
+        logic ir;
+        logic zero;
+        logic cy;
+    } mcountinhibit_t;
+
+    typedef struct packed {logic [31:0] exception;} medeleg_t;
+    typedef struct packed {logic [31:0] exception;} medelegh_t;
+    typedef struct packed {logic [31:0] isr;} mideleg_t;
+
+    // Supervisor mode CSRs
+
+    typedef struct packed {
+        logic sd;
+        logic [5:0] wpri_6;
+        logic sdt;
+        logic spelp;
+        logic [2:0] wpri_5;
+        logic mxr;
+        logic sum;
+        logic wpri_4;
+        logic [1:0] xs;
+        logic [1:0] fs;
+        logic [1:0] wpri_3;
+        logic [1:0] vs;
+        logic spp;
+        logic wpri_2;
+        logic ube;
+        logic spie;
+        logic [2:0] wpri_1;
+        logic sie;
+        logic wpri_0;
+    } sstatus_t;
+
+    typedef struct packed {
+        logic [29:0] base;
+        logic [1:0]  mode;
+    } stvec_t;
+
+    typedef struct packed {logic [31:0] pc;} sepc_t;
+
+    typedef struct packed {
+        logic isr;
+        logic [30:0] code;
+    } scause_t;
+
+    typedef struct packed {logic [31:0] value;} stval_t;
+    typedef struct packed {logic [31:0] value;} sip_t;
+    typedef struct packed {logic [31:0] value;} sie_t;
+    typedef struct packed {logic [31:0] scratch;} sscratch_t;
+    typedef struct packed {
+        logic mode;
+        logic [8:0] asid;
+        logic [21:0] ppn;
+    } satp_t;
+
+    typedef struct packed {
+        logic [28:0] hpm;
+        logic ir;
+        logic tm;
+        logic cy;
+    } scounteren_t;
 
 endpackage

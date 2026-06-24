@@ -2,5 +2,7 @@ if SOC_SKIETA
 	config SYS_CLOCK_HW_CYCLES_PER_SEC
 		default $(dt_node_int_prop_int,/cpus/cpu@0,clock-frequency)
 	config NUM_IRQS
+		default 48
+	config MAX_IRQ_PER_AGGREGATOR
 		default 32
 endif

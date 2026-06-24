@@ -52,7 +52,7 @@ module axi_master #(
     } state_t;
 
     // AXI helpers
-    logic [ 35:0] awaddr_r;
+    (* mark_debug = "true" *) logic [ 35:0] awaddr_r;  // ILA: writeback addr — did 0x..46040 ever evict?
     logic [ 35:0] araddr_r;
     logic [127:0] wdata_r;
     logic         wlast_r;
@@ -60,7 +60,7 @@ module axi_master #(
     // MMIO handlers
     logic         is_mmio;
     assign is_mmio = (addr_d < 32'h8000_0000 && (rd_en_d || wr_en)) ? 1 : 0;
-    logic   [  31:0] d_cache_out;  // Needed to mux MMIO or D_cache
+    (* mark_debug = "true" *) logic   [  31:0] d_cache_out;  // Needed to mux MMIO or D_cache — ILA: D$ data out for the load
     logic   [  31:0] mmio_out;
     logic            mmio_valid;
 
@@ -81,12 +81,12 @@ module axi_master #(
 
     logic   [ 127:0] cache_load_data;
 
-    logic            dirty_evict_d;
+    (* mark_debug = "true" *) logic            dirty_evict_d;
     logic            dirty_evict_i;
 
-    logic            stall_d;
+    (* mark_debug = "true" *) logic            stall_d;
     logic            stall_i;
-    logic            miss_d;
+    (* mark_debug = "true" *) logic            miss_d;  // ILA: 0=lr.w hit (suspect timing), 1=miss→refill (suspect stale DDR)
     logic            miss_i;
 
     /* verilator lint_off UNUSEDSIGNAL */
@@ -96,7 +96,7 @@ module axi_master #(
     /* verilator lint_on UNUSEDSIGNAL */
 
     logic            i_stall_in_progress;  // Coordinate which cache is worked on
-    state_t          state_q;
+    (* mark_debug = "true" *) state_t          state_q;  // ILA: AXI FSM — AR/AW/refill/evict for the loop line
     logic            beat_counter;
 
     logic            d_clear_dirty;
@@ -164,7 +164,7 @@ module axi_master #(
 
     wire stall_D_raw = (stall_d || miss_d || (rd_en_d && addr_d != d_cache_out_addr_q));
     logic stall_D_raw_q;
-    logic [31:0] d_cache_out_addr_q;
+    (* mark_debug = "true" *) logic [31:0] d_cache_out_addr_q;  // ILA: CPU addr that d_cache_out corresponds to
 
     assign stall_D = (((stall_D_raw || stall_D_raw_q) || (is_mmio && !mmio_valid) || flush_in_progress)) && !flush_done;
     assign stall_I = (stall_i || miss_i) || flush_in_progress;

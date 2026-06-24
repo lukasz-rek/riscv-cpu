@@ -24,7 +24,9 @@ module core (
 
     // ISRs
     input logic mtime_isr,
-    input logic uart_isr
+    input logic meip_isr,
+    input logic msip_isr,
+    input logic seip_isr
 );
 
 
@@ -107,6 +109,8 @@ module core (
     logic trap_taken;
     logic [31:0] trap_target;
     logic isr_pending;
+    logic csr_bad;
+    logic sret_en;
 
     csr_regfile csr_regfile (
         .clk  (clk),
@@ -126,13 +130,17 @@ module core (
         .trap_pc((trap_en) ? trap_pc : isr_pc),
         .trap_val(trap_val),
         .mret_en(mret_en),
+        .csr_bad(csr_bad),
+        .sret_en(sret_en),
 
         .trap_taken  (trap_taken),
         .trap_target (trap_target),
         .trap_pending(isr_pending),
 
         .mtime_isr(mtime_isr),
-        .uart_isr (uart_isr)
+        .meip_isr (meip_isr),
+        .msip_isr (msip_isr),
+        .seip_isr (seip_isr)
     );
 
 
@@ -214,6 +222,9 @@ module core (
         .trap_pc(trap_pc),
         .trap_val(trap_val),
         .mret_en(mret_en),
+        .csr_bad(csr_bad),
+        .sret_en(sret_en),
+
 
 
         .freeze (freeze),
@@ -263,6 +274,31 @@ module core (
         .atomic_temporary_id(atomic_temporary_id),
         .atomic_temporary_value(atomic_temporary_value)
     );
+
+
+    // ─────────────────────────────────────────────────────────────────────
+    // ILA taps — LR/SC dead-loop investigation (PC 0x8000de24)
+    // Trigger on: dbg_commit_valid && dbg_commit_pc == 0x8000de24
+    //   dbg_load_result = raw D$ output for the load (what lr.w returns)
+    //   dbg_wr_data     = value committed to a0 (==load_result for LW/lr.w)
+    //   dbg_wr_addr     = dest reg (expect 0x0a = x10/a0)
+    // Compare against the RTL-sim trace.log value (0x2) at the same PC.
+    // ─────────────────────────────────────────────────────────────────────
+    (* mark_debug = "true" *) logic [31:0] dbg_commit_pc;
+    (* mark_debug = "true" *) logic [31:0] dbg_commit_instr;
+    (* mark_debug = "true" *) logic        dbg_commit_valid;
+    (* mark_debug = "true" *) logic [ 4:0] dbg_wr_addr;
+    (* mark_debug = "true" *) logic [31:0] dbg_wr_data;
+    (* mark_debug = "true" *) logic        dbg_wr_en;
+    (* mark_debug = "true" *) logic [31:0] dbg_load_result;
+
+    assign dbg_commit_pc    = rd_if_forward_ctrl.pc;
+    assign dbg_commit_instr = rd_if_forward_ctrl.instr;
+    assign dbg_commit_valid = rd_if_forward_ctrl.log_valid;
+    assign dbg_wr_addr      = rd;
+    assign dbg_wr_data      = rf_wr_data;
+    assign dbg_wr_en        = rf_wr_en;
+    assign dbg_load_result  = mem_rd_data2;
 
 
 endmodule

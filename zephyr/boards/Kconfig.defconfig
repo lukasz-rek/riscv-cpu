@@ -1,0 +1,38 @@
+if BOARD_PLYTA
+
+config SERIAL
+    default y
+
+config UART_NS16550
+    default y
+
+config CONSOLE
+    default y
+
+config UART_CONSOLE
+    default y
+
+config TICKLESS_KERNEL
+    default y
+config UART_INTERRUPT_DRIVEN
+    default y
+
+config UART_NS16550_ACCESS_WORD_ONLY
+    default y
+# config PLIC
+#     default y
+
+config RISCV_SOC_INTERRUPT_INIT
+    default y
+
+config 2ND_LVL_ISR_TBL_OFFSET
+	default 12
+
+config 2ND_LVL_INTR_00_OFFSET
+	default 11
+
+config 2ND_LEVEL_INTERRUPT_BITS
+	default 11
+config MULTI_LEVEL_INTERRUPTS
+	default y
+endif # BOARD_PLYTA

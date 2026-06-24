@@ -5,20 +5,24 @@ module top #(
 ) (
     input logic clk,
     input logic rst_n,
-    input logic uart_isr,
+    input logic meip,
+    input logic mtip,
+    input logic msip,
+    input logic seip,
+
 
     axi_if.master m_axi
 );
 
 
     // Memory signals
-    logic [31:0] addr_d;
+    (* mark_debug = "true" *) logic [31:0] addr_d;  // ILA: live D-side mem addr (anchors miss_d/stall_d/d_cache_out)
     logic [31:0] addr_i;
 
-    logic [31:0] mem_wr_data;
+    (* mark_debug = "true" *) logic [31:0] mem_wr_data;  // ILA: store data — did 0x2 ever get written to the loop line?
 
-    logic mem_wr_en;
-    logic rd_en_d;
+    (* mark_debug = "true" *) logic mem_wr_en;  // ILA: store strobe (anchors writes to the loop line)
+    (* mark_debug = "true" *) logic rd_en_d;    // ILA: load strobe (lr.w access)
     logic rd_en_i;
     logic [3:0] byte_en_d;
 
@@ -31,7 +35,6 @@ module top #(
 
     logic flush_I;
 
-    logic mtime_isr;
 
     core cpu (
         .clk(clk),
@@ -41,7 +44,7 @@ module top #(
         .mem_wr_en(mem_wr_en),
         .mem_wr_data(mem_wr_data),
         .mem_rd_data1(rd_data_i),
-        .mem_rd_data2(mmio_pass_rd_data_d),
+        .mem_rd_data2(rd_data_d),
         .mem_byte_en(byte_en_d),
         .stall_I(stall_I),
         .stall_D(stall_D),
@@ -49,32 +52,12 @@ module top #(
         .rd_en_i(rd_en_i),
         .flush_I(flush_I),
 
-        .mtime_isr(mtime_isr),
-        .uart_isr (uart_isr)
+        .mtime_isr(mtip),
+        .meip_isr (meip),
+        .msip_isr (msip),
+        .seip_isr (seip)
     );
 
-    logic mmio_pass_rd_en;
-    logic mmio_pass_wr_en;
-    logic [31:0] mmio_pass_rd_data_d;
-
-    local_mmio mmio (
-        .clk  (clk),
-        .rst_n(rst_n),
-
-        .addr(addr_d),
-        .wr_data(mem_wr_data),
-
-        .rd_en(rd_en_d),
-        .wr_en(mem_wr_en),
-
-        .rd_en_d(mmio_pass_rd_en),
-        .wr_en_d(mmio_pass_wr_en),
-
-        .rd_data_d(rd_data_d),
-        .rd_data  (mmio_pass_rd_data_d),
-
-        .mtime_isr(mtime_isr)
-    );
 
     axi_master #(
         .ADDR_WIDTH(32),
@@ -87,9 +70,9 @@ module top #(
         .addr_d   (addr_d),
         .wr_data  (mem_wr_data),
         .byte_en  (byte_en_d),
-        .wr_en    (mmio_pass_wr_en),
+        .wr_en    (mem_wr_en),
         .rd_en_i  (rd_en_i),
-        .rd_en_d  (mmio_pass_rd_en),
+        .rd_en_d  (rd_en_d),
         .rd_data_i(rd_data_i),
         .rd_data_d(rd_data_d),
         .stall_I  (stall_I),

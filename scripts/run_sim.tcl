@@ -24,4 +24,3 @@ if {$runtime eq "all"} {
 }
 
 launch_simulation
-close_project

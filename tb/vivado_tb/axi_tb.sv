@@ -7,7 +7,11 @@ module axi_tb;
 
     logic clk   = 0;
     logic rst_n = 0;
-    logic uart_tx;
+
+    wire msip;
+    wire mtip;
+    wire meip;
+    wire seip;
 
     always #8.62 clk = ~clk; // ~58 MHz
 
@@ -62,7 +66,10 @@ module axi_tb;
     top_wrapper dut (
         .clk             (clk),
         .rst_n           (rst_n),
-        .uart_isr(0),
+        .mtip(mtip),
+        .msip(msip),
+        .meip(meip),
+        .seip(seip),
         // AR
         .m_axi_araddr    (axi_araddr),
         .m_axi_arlen     (axi_arlen),
@@ -113,6 +120,10 @@ module axi_tb;
     axi_test_wrapper vip_inst (
         .aclk_0             (clk),
         .aresetn_0          (rst_n),
+        .msip(msip),
+        .mtip(mtip),
+        .meip(meip),
+        .seip(seip),
         // AR
         .S_AXI_0_araddr     (axi_araddr),
         .S_AXI_0_arlen      (axi_arlen),
@@ -122,7 +133,6 @@ module axi_tb;
         .S_AXI_0_arcache    (axi_arcache),
         .S_AXI_0_arprot     (axi_arprot),
         .S_AXI_0_arqos      (axi_arqos),
-        .S_AXI_0_arregion   (4'b0),
         .S_AXI_0_arvalid    (axi_arvalid),
         .S_AXI_0_arready    (axi_arready),
         // R
@@ -140,7 +150,6 @@ module axi_tb;
         .S_AXI_0_awcache    (axi_awcache),
         .S_AXI_0_awprot     (axi_awprot),
         .S_AXI_0_awqos      (axi_awqos),
-        .S_AXI_0_awregion   (4'b0),
         .S_AXI_0_awvalid    (axi_awvalid),
         .S_AXI_0_awready    (axi_awready),
         // W
@@ -169,15 +178,22 @@ module axi_tb;
     wire [31:0] commit_pc = dut.top_inst.cpu.rf_stage.current_ctrl_signals.pc;
     wire [31:0] commit_instr = dut.top_inst.cpu.rf_stage.current_ctrl_signals.instr;
     wire commit_valid = dut.top_inst.cpu.rf_stage.current_ctrl_signals.log_valid;
+    wire [1:0] priv = dut.top_inst.cpu.csr_regfile.privilege;
 
     wire [31:0] rf_wr_data = dut.top_inst.cpu.rf_stage.wr_data;
     wire [4:0] rf_wr_addr = dut.top_inst.cpu.rf_stage.wr_addr;
     wire rf_wr_en = dut.top_inst.cpu.rf_stage.rf_wr_en;
 
     wire mem_stall_d = dut.top_inst.cpu.mem_stage.stall_D;
-    wire mem_wr_en = dut.top_inst.cpu.mem_stage.mem_wr_en;
-    wire [31:0] mem_wr_addr = dut.top_inst.cpu.mem_stage.mem_addr2;
-    wire [31:0] mem_wr_data = dut.top_inst.cpu.mem_stage.mem_wr_data;
+    wire mem_wr_en = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_wr_en;
+    wire [31:0] mem_wr_addr = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_wr_addr;
+    wire [31:0] mem_wr_data = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_wr_data;
+
+    wire mem_rd_en = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_rd_en;
+    wire [31:0] mem_rd_addr = dut.top_inst.cpu.rf_stage.in_ctrl_signals.mem_addr2;
+
+    wire rf_wr_en = dut.top_inst.cpu.rf_stage.rf_wr_en;
+    wire [4:0] rf_addr = dut.top_inst.cpu.rf_stage.wr_addr;
 
     logic [31:0] exec_instr;
     logic [31:0] exec_pc;
@@ -277,8 +293,9 @@ module axi_tb;
         // Spoof uart ready to write
         slv_agent.mem_model.backdoor_memory_write_4byte(32'h10000014, 32'h00000060, 4'hF);
 
-        load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
+        // load_hex("/home/luki/Projekty/cpu/code/build/program.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/zephyr_cpu/zephyr.hex", 36'h8_4000_0000);
+        load_hex("/home/luki/Projekty/linux_cpu/buildroot/fw_payload.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/code/coremark/build/coremark.hex", 36'h8_4000_0000);
         // load_hex("/home/luki/Projekty/cpu/logs/arch/Zaamo-amoadd.w-00/Zaamo-amoadd.w-00.hex", 36'h8_4000_0000);
 
@@ -289,7 +306,7 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #1_000_000;
+        #512_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;
@@ -342,6 +359,10 @@ module axi_tb;
         end
         $display("[TB] final: %0d instructions retired, last_pc=0x%08h",
                  inst_cnt, last_unique_pc);
+        if (oor_cnt != 0)
+            $display("[TB][OOR] *** %0d out-of-range AXI access(es) detected ***", oor_cnt);
+        else
+            $display("[TB][OOR] no out-of-range AXI accesses");
 
         $display("Backdoor read @ 0x10000000 = 0x%08X", slv_agent.mem_model.backdoor_memory_read(32'h1000_0000));
         $display("Backdoor read @ 0x10000010 = 0x%08X", slv_agent.mem_model.backdoor_memory_read(32'h1000_0010));
@@ -369,18 +390,33 @@ module axi_tb;
     always @(posedge clk) begin
         if (axi_awvalid && axi_awready)
             last_awaddr <= axi_awaddr;
-        if (rf_wr_en) begin
-            $fwrite(trace_fd, "REG_ADDR=%02h  REG_DATA=%08h\n",
-                           rf_wr_addr, rf_wr_data);
-        end
-        if (!mem_stall_d && mem_wr_en) begin
-            $fwrite(trace_fd, "MEM_ADDR=%08h  MEM_DATA=%08h\n",
-                           mem_wr_addr, mem_wr_data);
-        end
+        // if (rf_wr_en) begin
+        //     $fwrite(trace_fd, "REG_ADDR=%02h  REG_DATA=%08h\n",
+        //                    rf_wr_addr, rf_wr_data);
+        // end
+        // if (!mem_stall_d && mem_wr_en) begin
+        //     $fwrite(trace_fd, "MEM_ADDR=%08h  MEM_DATA=%08h\n",
+        //                    mem_wr_addr, mem_wr_data);
+        // end
         if (commit_valid) begin
-            $fwrite(trace_fd, "PC=%08h  INSTR=%08h\n",
-                           commit_pc, commit_instr);
+            $fwrite(trace_fd, "core   0: %d 0x%08h (0x%08h)", priv,
+                                   commit_pc, commit_instr);
+            if (rf_wr_en && rf_wr_addr != '0) begin
+                $fwrite(trace_fd, " x%-2d 0x%08h", rf_wr_addr, rf_wr_data);
+            end
+            if (mem_wr_en) begin
+                case (commit_instr[14:12]) // func3 for store ops
+                    3'b000: $fwrite(trace_fd, " mem 0x%08h 0x%02h", mem_wr_addr, mem_wr_data[7:0]);  // SB
+                    3'b001: $fwrite(trace_fd, " mem 0x%08h 0x%04h", mem_wr_addr, mem_wr_data[15:0]); // SH
+                    default: $fwrite(trace_fd, " mem 0x%08h 0x%08h", mem_wr_addr, mem_wr_data);      // SW
+                endcase
+            end else if (mem_rd_en) begin
+                $fwrite(trace_fd, " mem 0x%08h", mem_rd_addr);
+            end
+            $fwrite(trace_fd, "\n");
+
         end
+
     end
 
     always @(posedge clk) begin
@@ -395,6 +431,41 @@ module axi_tb;
             endcase
             if (ch >= 8'h20 && ch <= 8'h7E || ch == 8'h0A || ch == 8'h0D)
                 $write("%c", ch);
+        end
+    end
+
+    // ── Out-of-range AXI access checker ───────────────────────────────
+    // The VIP slave answers any address via backdoor, so misdirected
+    // accesses look fine in sim but hang/DECERR on real HW. Flag any AXI
+    // address outside the slaves defined in the Vivado Address Editor.
+    // NOTE: these are 36-bit *AXI bus* addresses, not CPU-side addresses.
+    localparam logic [35:0] UART_BASE  = 36'h0_1000_0000, UART_HIGH  = 36'h0_1000_0FFF;
+    localparam logic [35:0] CLINT_BASE = 36'h0_0200_0000, CLINT_HIGH = 36'h0_0200_FFFF;
+    localparam logic [35:0] PLIC_BASE  = 36'h0_0C00_0000, PLIC_HIGH  = 36'h0_0FFF_FFFF;
+    localparam logic [35:0] MEM_BASE   = 36'h8_4000_0000, MEM_HIGH   = 36'h8_7FFF_FFFF;
+
+    function automatic logic addr_in_range(input logic [35:0] a);
+        addr_in_range = (a >= UART_BASE  && a <= UART_HIGH ) ||
+                        (a >= CLINT_BASE && a <= CLINT_HIGH) ||
+                        (a >= PLIC_BASE  && a <= PLIC_HIGH ) ||
+                        (a >= MEM_BASE   && a <= MEM_HIGH  );
+    endfunction
+
+    int oor_cnt;
+    initial oor_cnt = 0;
+
+    always @(posedge clk) begin
+        if (rst_n) begin
+            if (axi_arvalid && axi_arready && !addr_in_range(axi_araddr)) begin
+                oor_cnt++;
+                $display("[TB][OOR] READ  out-of-range AXI addr=0x%09h len=%0d (CPU addr_d=0x%08h pc=0x%08h instr=0x%08h) @ %0t",
+                         axi_araddr, axi_arlen, cpu_addr, mem_pc, mem_instr, $time);
+            end
+            if (axi_awvalid && axi_awready && !addr_in_range(axi_awaddr)) begin
+                oor_cnt++;
+                $display("[TB][OOR] WRITE out-of-range AXI addr=0x%09h len=%0d (CPU addr_d=0x%08h pc=0x%08h instr=0x%08h) @ %0t",
+                         axi_awaddr, axi_awlen, cpu_addr, mem_pc, mem_instr, $time);
+            end
         end
     end
 

@@ -8,8 +8,8 @@ module decode (
     input logic clk,
     input logic rst_n,
 
-    input logic [31:0] instr_data,
-    input logic [31:0] instr_pc,
+    (* mark_debug = "true" *) input logic [31:0] instr_data,
+    (* mark_debug = "true" *) input logic [31:0] instr_pc,
     input logic valid,
     // Used to correct IF if we have stalls/flushes
     output logic [31:0] next_pc,
@@ -334,6 +334,7 @@ module decode (
                                 temp_signals.trap_cause = BREAKPOINT;
                             end
                             12'b001100000010: temp_signals.mret_en = 1;
+                            12'b000100000010: temp_signals.sret_en = 1;
                             12'b000100000101: ;  // wfi is nop :/ sadge
                             default: illegal_instr(temp_signals);
                         endcase

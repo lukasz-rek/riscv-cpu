@@ -38,6 +38,9 @@ module mem (
                 out_ctrl_signals.rf_wr_data_valid <= (!stall_D);
                 out_ctrl_signals.log_valid <= (!stall_D);
             end
+            if (mem_wr_en) begin
+                out_ctrl_signals.log_valid <= (!stall_D);
+            end
         end
     end
 
