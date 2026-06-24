@@ -124,12 +124,12 @@ module exec (
     logic       [31:0] trap_pc_d;
     logic       [31:0] trap_val_d;
 
-    // Reservation handling
+    // Reservation handling   (ILA-tapped — LR/SC dead-loop debug)
     logic       [31:0] reservation_addr;
-    logic       [31:0] reservation_addr_q;
-    logic              reservation_valid_q;
-    logic              validate_reservation;
-    logic              invalidate_reservation;
+    (* mark_debug = "true" *) logic       [31:0] reservation_addr_q;   // address LR.W reserved
+    (* mark_debug = "true" *) logic              reservation_valid_q;  // is a reservation live?
+    (* mark_debug = "true" *) logic              validate_reservation;   // LR.W set it this cycle
+    (* mark_debug = "true" *) logic              invalidate_reservation; // SC.W/trap cleared it
 
 
     always_comb begin
@@ -361,8 +361,6 @@ module exec (
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             out_ctrl_signals <= 0;
-            reservation_addr_q <= '0;
-            atomic_temp_q <= '0;
         end else begin
             if (stall_D) begin
                 out_ctrl_signals <= out_ctrl_signals;
@@ -404,6 +402,8 @@ module exec (
             atomic_temporary_values_q[0] <= '0;
             atomic_temporary_values_q[1] <= '0;
             reservation_valid_q <= 0;
+            reservation_addr_q <= '0;
+            atomic_temp_q <= '0;
             atomic_temp_valid_q <= 0;
         end else begin
             atomic_temp_q <= atomic_temp;

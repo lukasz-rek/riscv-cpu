@@ -296,7 +296,7 @@ module csr_regfile (
                 12'h302: begin
                     csr_rd_data = medeleg_q;
 
-                    medeleg = csr_wr_data;
+                    medeleg = csr_wr_data & ~32'h0000_B000;
                 end
                 12'h303: begin
                     csr_rd_data = mideleg_q;

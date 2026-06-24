@@ -8,8 +8,8 @@ module decode (
     input logic clk,
     input logic rst_n,
 
-    input logic [31:0] instr_data,
-    input logic [31:0] instr_pc,
+    (* mark_debug = "true" *) input logic [31:0] instr_data,
+    (* mark_debug = "true" *) input logic [31:0] instr_pc,
     input logic valid,
     // Used to correct IF if we have stalls/flushes
     output logic [31:0] next_pc,

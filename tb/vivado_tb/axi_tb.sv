@@ -178,6 +178,7 @@ module axi_tb;
     wire [31:0] commit_pc = dut.top_inst.cpu.rf_stage.current_ctrl_signals.pc;
     wire [31:0] commit_instr = dut.top_inst.cpu.rf_stage.current_ctrl_signals.instr;
     wire commit_valid = dut.top_inst.cpu.rf_stage.current_ctrl_signals.log_valid;
+    wire [1:0] priv = dut.top_inst.cpu.csr_regfile.privilege;
 
     wire [31:0] rf_wr_data = dut.top_inst.cpu.rf_stage.wr_data;
     wire [4:0] rf_wr_addr = dut.top_inst.cpu.rf_stage.wr_addr;
@@ -305,7 +306,7 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #256_000_000;
+        #512_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;
@@ -358,6 +359,10 @@ module axi_tb;
         end
         $display("[TB] final: %0d instructions retired, last_pc=0x%08h",
                  inst_cnt, last_unique_pc);
+        if (oor_cnt != 0)
+            $display("[TB][OOR] *** %0d out-of-range AXI access(es) detected ***", oor_cnt);
+        else
+            $display("[TB][OOR] no out-of-range AXI accesses");
 
         $display("Backdoor read @ 0x10000000 = 0x%08X", slv_agent.mem_model.backdoor_memory_read(32'h1000_0000));
         $display("Backdoor read @ 0x10000010 = 0x%08X", slv_agent.mem_model.backdoor_memory_read(32'h1000_0010));
@@ -394,7 +399,7 @@ module axi_tb;
         //                    mem_wr_addr, mem_wr_data);
         // end
         if (commit_valid) begin
-            $fwrite(trace_fd, "core   0: 3 0x%08h (0x%08h)",
+            $fwrite(trace_fd, "core   0: %d 0x%08h (0x%08h)", priv,
                                    commit_pc, commit_instr);
             if (rf_wr_en && rf_wr_addr != '0) begin
                 $fwrite(trace_fd, " x%-2d 0x%08h", rf_wr_addr, rf_wr_data);
@@ -426,6 +431,41 @@ module axi_tb;
             endcase
             if (ch >= 8'h20 && ch <= 8'h7E || ch == 8'h0A || ch == 8'h0D)
                 $write("%c", ch);
+        end
+    end
+
+    // ── Out-of-range AXI access checker ───────────────────────────────
+    // The VIP slave answers any address via backdoor, so misdirected
+    // accesses look fine in sim but hang/DECERR on real HW. Flag any AXI
+    // address outside the slaves defined in the Vivado Address Editor.
+    // NOTE: these are 36-bit *AXI bus* addresses, not CPU-side addresses.
+    localparam logic [35:0] UART_BASE  = 36'h0_1000_0000, UART_HIGH  = 36'h0_1000_0FFF;
+    localparam logic [35:0] CLINT_BASE = 36'h0_0200_0000, CLINT_HIGH = 36'h0_0200_FFFF;
+    localparam logic [35:0] PLIC_BASE  = 36'h0_0C00_0000, PLIC_HIGH  = 36'h0_0FFF_FFFF;
+    localparam logic [35:0] MEM_BASE   = 36'h8_4000_0000, MEM_HIGH   = 36'h8_7FFF_FFFF;
+
+    function automatic logic addr_in_range(input logic [35:0] a);
+        addr_in_range = (a >= UART_BASE  && a <= UART_HIGH ) ||
+                        (a >= CLINT_BASE && a <= CLINT_HIGH) ||
+                        (a >= PLIC_BASE  && a <= PLIC_HIGH ) ||
+                        (a >= MEM_BASE   && a <= MEM_HIGH  );
+    endfunction
+
+    int oor_cnt;
+    initial oor_cnt = 0;
+
+    always @(posedge clk) begin
+        if (rst_n) begin
+            if (axi_arvalid && axi_arready && !addr_in_range(axi_araddr)) begin
+                oor_cnt++;
+                $display("[TB][OOR] READ  out-of-range AXI addr=0x%09h len=%0d (CPU addr_d=0x%08h pc=0x%08h instr=0x%08h) @ %0t",
+                         axi_araddr, axi_arlen, cpu_addr, mem_pc, mem_instr, $time);
+            end
+            if (axi_awvalid && axi_awready && !addr_in_range(axi_awaddr)) begin
+                oor_cnt++;
+                $display("[TB][OOR] WRITE out-of-range AXI addr=0x%09h len=%0d (CPU addr_d=0x%08h pc=0x%08h instr=0x%08h) @ %0t",
+                         axi_awaddr, axi_awlen, cpu_addr, mem_pc, mem_instr, $time);
+            end
         end
     end
 
