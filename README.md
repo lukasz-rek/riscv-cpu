@@ -53,7 +53,8 @@ To make porting easier I added some MMIO devices at their usual/spec-defined add
 * PLIC - 0x0200_0000
 * 16550 UART - 0x1000_0000
 
-They're very simple and don't support all features but are perfect for porting as it's just a few lines of verilog as opposed to writing firmware patches or making wild device trees.
+They're very simple and don't support all features but are perfect for porting as it's just a few lines of verilog as opposed to writing firmware patches or making wild device trees. Well they do eat resources, especially for interconnect but I don't use too much anyway so I can trade util for effort
+
 # Build/Sim
 
 After I finalize block design I hope to make scripts that regenerate it and run whole synth/impl/bit flow, but a backup is there in *scripts* folder. Once you have it
