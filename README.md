@@ -31,10 +31,17 @@ Correct operation validated. See README.md for run and reporting rules.
 Got 1690360788 cycles and 904021454 instructions
 CPI: ~1.86
 ```
-Some utilization results from KRIA KV260 - Zynq Ultrascale+
-```
+Utilization on Kria KV260 (Zynq UltraScale+), out of 117120 LUTs / 234240 FFs / 144 BRAM / 1248 DSP. Doesn't include few not important components like interconnects, reset from host etc.
 
-```
+| Module             | LUTs         | FFs          | CARRY8 | BRAM        | DSP |
+|--------------------|--------------|--------------|--------|-------------|-----|
+| **RISC_V_CPU**     | 6327 (5.4%)  | 4102 (1.8%)  | 109    | 18 (12.5%)  | 4   |
+| cpu_smartconnect   | 5696         | 7920         | 13     | 0           | 0   |
+| PLIC               | 223          | 225          | 4      | 0           | 0   |
+| CLINT              | 221          | 172          | 12     | 0           | 0   |
+| **Total (system)** | 13422 (11.5%)| 13407 (5.7%) | 143    | 18 (12.5%)  | 4   |
+
+
 # Architecture
 
 ## Core
@@ -89,7 +96,7 @@ Use the board/soc files in the /zephyr folder. Then `west build - b plyta` with 
 
 Use .config folders in Linux for Buildroot/Linux/uclib/busybox. Note that noMMU Linux is not exactly the intended way to run Linux so some trickery may be required. My hint is to select all the options that simplify memory allocation/process spawning but the names may have changed from what I have.
 
-An in the end, noMMU linux has quirks. For me not all binaries run and I don't see a point in fiddling to recomplie all of them within buildroots system. Also there seem to be tiny discrepancies between spike and actual board. Would not recommend this as daily driver lol.
+An in the end, noMMU linux has quirks. For me not all binaries run and I don't see a point in fiddling to recomplie all of them within buildroots system. Also there seem to be tiny discrepancies between spike and actual board. There is one remaining time-dependent bug, likely in ISR + TRAP handling so sometimes the booting takes a few tries. I got it working and since it's a hobby project I'd rather do other things than track down another obscure RTL bug. Would not recommend this as daily driver lol.
  
 # Remaining improvements
 - [ ] Add MMU stage -> should make Linux much more usable

@@ -52,7 +52,7 @@ module axi_master #(
     } state_t;
 
     // AXI helpers
-    (* mark_debug = "true" *) logic [ 35:0] awaddr_r;  // ILA: writeback addr — did 0x..46040 ever evict?
+    (* mark_debug = "true" *)logic [ 35:0] awaddr_r;  // ILA: writeback addr — did 0x..46040 ever evict?
     logic [ 35:0] araddr_r;
     logic [127:0] wdata_r;
     logic         wlast_r;
@@ -61,46 +61,47 @@ module axi_master #(
     logic         is_mmio;
     assign is_mmio = (addr_d < 32'h8000_0000 && (rd_en_d || wr_en)) ? 1 : 0;
     (* mark_debug = "true" *) logic   [  31:0] d_cache_out;  // Needed to mux MMIO or D_cache — ILA: D$ data out for the load
-    logic   [  31:0] mmio_out;
-    logic            mmio_valid;
+    logic [31:0] mmio_out;
+    logic mmio_valid;
 
-    logic   [  31:0] d_cache_out_q;
+    logic [31:0] d_cache_out_q;
 
     // Bit of cheating :( but that's not gonna change
     // + 1 bit to overflow when we go over
-    logic   [15 : 0] flush_line_counter;
-    logic            flush_started;
+    logic [15 : 0] flush_line_counter;
+    logic flush_started;
 
     // Cache signals
-    logic   [   1:0] cache_load;
+    logic [1:0] cache_load;
 
-    logic   [ 255:0] cache_evicted_data;
-    logic   [ 255:0] cache_evicted_data_d;
-    logic   [ 255:0] cache_evicted_data_i;
-    logic   [ 127:0] evicted_buffer                                              [2];
+    logic [255:0] cache_evicted_data;
+    logic [255:0] cache_evicted_data_d;
+    logic [255:0] cache_evicted_data_i;
+    logic [127:0] evicted_buffer[2];
 
-    logic   [ 127:0] cache_load_data;
+    logic [127:0] cache_load_data;
 
-    (* mark_debug = "true" *) logic            dirty_evict_d;
-    logic            dirty_evict_i;
+    (* mark_debug = "true" *) logic dirty_evict_d;
+    logic dirty_evict_i;
 
-    (* mark_debug = "true" *) logic            stall_d;
-    logic            stall_i;
+    (* mark_debug = "true" *) logic stall_d;
+    logic stall_i;
     (* mark_debug = "true" *) logic            miss_d;  // ILA: 0=lr.w hit (suspect timing), 1=miss→refill (suspect stale DDR)
-    logic            miss_i;
+    logic miss_i;
 
     /* verilator lint_off UNUSEDSIGNAL */
-    logic   [  31:0] araddr_q;
-    logic   [  31:0] evicted_addr_i;
-    logic   [  31:0] evicted_addr_d;
+    logic [31:0] araddr_q;
+    logic [31:0] evicted_addr_i;
+    logic [31:0] evicted_addr_d;
     /* verilator lint_on UNUSEDSIGNAL */
 
-    logic            i_stall_in_progress;  // Coordinate which cache is worked on
-    (* mark_debug = "true" *) state_t          state_q;  // ILA: AXI FSM — AR/AW/refill/evict for the loop line
-    logic            beat_counter;
+    logic i_stall_in_progress;  // Coordinate which cache is worked on
+    (* mark_debug = "true" *)
+    state_t state_q;  // ILA: AXI FSM — AR/AW/refill/evict for the loop line
+    logic beat_counter;
 
-    logic            d_clear_dirty;
-    logic            i_clear_valid;
+    logic d_clear_dirty;
+    logic i_clear_valid;
 
     axi_cache #() d_cache (
         .clk  (clk),

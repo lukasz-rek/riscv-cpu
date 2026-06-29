@@ -9,6 +9,7 @@ module top #(
     input logic mtip,
     input logic msip,
     input logic seip,
+    input logic [63:0] mtime,
 
 
     axi_if.master m_axi
@@ -16,13 +17,15 @@ module top #(
 
 
     // Memory signals
-    (* mark_debug = "true" *) logic [31:0] addr_d;  // ILA: live D-side mem addr (anchors miss_d/stall_d/d_cache_out)
+    (* mark_debug = "true" *)
+    logic [31:0] addr_d;  // ILA: live D-side mem addr (anchors miss_d/stall_d/d_cache_out)
     logic [31:0] addr_i;
 
     (* mark_debug = "true" *) logic [31:0] mem_wr_data;  // ILA: store data — did 0x2 ever get written to the loop line?
 
-    (* mark_debug = "true" *) logic mem_wr_en;  // ILA: store strobe (anchors writes to the loop line)
-    (* mark_debug = "true" *) logic rd_en_d;    // ILA: load strobe (lr.w access)
+    (* mark_debug = "true" *)
+    logic mem_wr_en;  // ILA: store strobe (anchors writes to the loop line)
+    (* mark_debug = "true" *) logic rd_en_d;  // ILA: load strobe (lr.w access)
     logic rd_en_i;
     logic [3:0] byte_en_d;
 
@@ -53,9 +56,10 @@ module top #(
         .flush_I(flush_I),
 
         .mtime_isr(mtip),
-        .meip_isr (meip),
-        .msip_isr (msip),
-        .seip_isr (seip)
+        .meip_isr(meip),
+        .msip_isr(msip),
+        .seip_isr(seip),
+        .mtime(mtime)
     );
 
 

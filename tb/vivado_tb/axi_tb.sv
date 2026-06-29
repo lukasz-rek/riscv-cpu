@@ -13,7 +13,7 @@ module axi_tb;
     wire meip;
     wire seip;
 
-    always #8.62 clk = ~clk; // ~58 MHz
+    always #4.167 clk = ~clk; // ~58 MHz
 
     // ── Output dir ──
     localparam string OUT_DIR = "/home/luki/Projekty/cpu/latest_run";
@@ -195,6 +195,20 @@ module axi_tb;
     wire rf_wr_en = dut.top_inst.cpu.rf_stage.rf_wr_en;
     wire [4:0] rf_addr = dut.top_inst.cpu.rf_stage.wr_addr;
 
+    // ── AMO trace coalescing ──────────────────────────────────────────────
+    // A multi-cycle AMO commits once per micro-state (load/op/store/move_rd/
+    // off-cleanup), so the naive logger emits 5 lines for one instruction while
+    // Spike emits ONE: "(insn) xRD <old> mem <addr> mem <addr> <new>". Buffer
+    // the load/store effects across the micro-states and emit a single
+    // Spike-format line at AMO_MOVE_RD. LR/SC stay AMO_OFF -> printed normally.
+    wire [2:0] amo_state = dut.top_inst.cpu.rf_stage.current_ctrl_signals.amo_state;
+    localparam [2:0] AMO_OFF=3'd0, AMO_LOAD=3'd1, AMO_OP=3'd2, AMO_STORE=3'd3, AMO_MOVE_RD=3'd4;
+    logic        amo_in_progress = 1'b0;
+    logic [31:0] amo_load_addr, amo_store_addr, amo_store_data;
+    // FENCE/FENCE.I retires over many cache-flush cycles (one commit each);
+    // Spike logs it once. Track last emitted PC to suppress the repeats.
+    logic [31:0] last_commit_pc = '1;
+
     logic [31:0] exec_instr;
     logic [31:0] exec_pc;
 
@@ -306,7 +320,7 @@ module axi_tb;
         $display("[TB] Reset released at %0t", $time);
 
         // 4 words x 4 bytes x ~87us/byte = ~1.4ms
-        #512_000_000;
+        #512_000_000_000;
 
         $display("[TB] Simulation finished at %0t", $time);
         $finish;
@@ -399,22 +413,51 @@ module axi_tb;
         //                    mem_wr_addr, mem_wr_data);
         // end
         if (commit_valid) begin
-            $fwrite(trace_fd, "core   0: %d 0x%08h (0x%08h)", priv,
-                                   commit_pc, commit_instr);
-            if (rf_wr_en && rf_wr_addr != '0) begin
-                $fwrite(trace_fd, " x%-2d 0x%08h", rf_wr_addr, rf_wr_data);
+            if (amo_state == AMO_MOVE_RD) begin
+                // Final micro-op of a multi-cycle AMO: emit ONE coalesced line.
+                // rd is live this cycle; load/store addrs were buffered earlier.
+                amo_in_progress <= 1'b1;            // suppress trailing AMO_OFF cleanup
+                $fwrite(trace_fd, "core   0: %d 0x%08h (0x%08h)", priv, commit_pc, commit_instr);
+                if (rf_wr_en && rf_wr_addr != '0)
+                    $fwrite(trace_fd, " x%-2d 0x%08h", rf_wr_addr, rf_wr_data);
+                $fwrite(trace_fd, " mem 0x%08h", amo_load_addr);
+                $fwrite(trace_fd, " mem 0x%08h 0x%08h", amo_store_addr, amo_store_data);
+                $fwrite(trace_fd, "\n");
+            end else if (amo_state != AMO_OFF) begin
+                // Intermediate AMO micro-op (load/op/store): buffer, no output.
+                amo_in_progress <= 1'b1;
+                if (amo_state == AMO_LOAD)  amo_load_addr  <= mem_rd_addr;
+                if (amo_state == AMO_STORE) begin
+                    amo_store_addr <= mem_wr_addr;
+                    amo_store_data <= mem_wr_data;
+                end
+            end else if (amo_in_progress && commit_instr[6:0] == 7'h2f) begin
+                // Trailing AMO_OFF cleanup pass — already emitted at MOVE_RD.
+                amo_in_progress <= 1'b0;
+            end else if (commit_instr[6:0] == 7'h0f && commit_pc == last_commit_pc) begin
+                // Trailing micro-cycle of a multi-cycle FENCE/FENCE.I — already
+                // emitted on its first commit; suppress the cache-flush repeats.
+                if (amo_in_progress) amo_in_progress <= 1'b0;
+            end else begin
+                // Normal instruction (incl LR/SC, plain loads/stores).
+                if (amo_in_progress) amo_in_progress <= 1'b0;
+                last_commit_pc <= commit_pc;
+                $fwrite(trace_fd, "core   0: %d 0x%08h (0x%08h)", priv,
+                                       commit_pc, commit_instr);
+                if (rf_wr_en && rf_wr_addr != '0) begin
+                    $fwrite(trace_fd, " x%-2d 0x%08h", rf_wr_addr, rf_wr_data);
+                end
+                if (mem_wr_en) begin
+                    case (commit_instr[14:12]) // func3 for store ops
+                        3'b000: $fwrite(trace_fd, " mem 0x%08h 0x%02h", mem_wr_addr, mem_wr_data[7:0]);  // SB
+                        3'b001: $fwrite(trace_fd, " mem 0x%08h 0x%04h", mem_wr_addr, mem_wr_data[15:0]); // SH
+                        default: $fwrite(trace_fd, " mem 0x%08h 0x%08h", mem_wr_addr, mem_wr_data);      // SW
+                    endcase
+                end else if (mem_rd_en) begin
+                    $fwrite(trace_fd, " mem 0x%08h", mem_rd_addr);
+                end
+                $fwrite(trace_fd, "\n");
             end
-            if (mem_wr_en) begin
-                case (commit_instr[14:12]) // func3 for store ops
-                    3'b000: $fwrite(trace_fd, " mem 0x%08h 0x%02h", mem_wr_addr, mem_wr_data[7:0]);  // SB
-                    3'b001: $fwrite(trace_fd, " mem 0x%08h 0x%04h", mem_wr_addr, mem_wr_data[15:0]); // SH
-                    default: $fwrite(trace_fd, " mem 0x%08h 0x%08h", mem_wr_addr, mem_wr_data);      // SW
-                endcase
-            end else if (mem_rd_en) begin
-                $fwrite(trace_fd, " mem 0x%08h", mem_rd_addr);
-            end
-            $fwrite(trace_fd, "\n");
-
         end
 
     end

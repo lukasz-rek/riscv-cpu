@@ -36,13 +36,24 @@ module csr_regfile (
     input logic mtime_isr,
     input logic meip_isr,
     input logic msip_isr,
-    input logic seip_isr
+    input logic seip_isr,
+    input logic [63:0] mtime
 );
 
     // Decode addr
-    logic current_csr_read_only;
+    logic           current_csr_read_only;
     csr_privilege_t current_csr_priv_bits;
-    logic supervisor_trap;
+    logic           supervisor_trap;
+
+    logic           committed_supervisor_q;
+    logic           committed_isr_pending_q;
+    isr_cause_t     committed_cause_q;
+    // Guards so requested trap changes are done only once.
+    logic           trap_changes_committed_q;
+    // Effective (live before commit, frozen while held) decision for trap_target.
+    logic           eff_supervisor;
+    logic           eff_isr_pending;
+    isr_cause_t     eff_cause;
 
 
     assign current_csr_read_only = (csr_addr[11:10] == 2'b11);
@@ -56,16 +67,24 @@ module csr_regfile (
     logic isr_pending;
     // Handle trap_target in diff modes and with sret/mret
     always_comb begin
+        // Before commit (committed_q=0, including the commit cycle itself) the
+        // live decision is correct and matches what the commit captures. Once the
+        // trap is committed and only the redirect is pending, use the frozen copy
+        // so a stall + isr_pending toggle can't move the vector out from under us.
+        eff_supervisor  = trap_changes_committed_q ? committed_supervisor_q : supervisor_trap;
+        eff_isr_pending = trap_changes_committed_q ? committed_isr_pending_q : isr_pending;
+        eff_cause       = trap_changes_committed_q ? committed_cause_q : prioritised_isr_cause;
+
         if (mret_en) begin
             trap_target = mepc_q.pc;
         end else if (sret_en) begin
             trap_target = sepc_q.pc;
-        end else if (supervisor_trap) begin
-            trap_target = (stvec_q.mode == 2'b01 && isr_pending) ?  // If vector mode, BASE + 4 * CAUSE
-            {stvec_q.base, 2'b00} + (32'(prioritised_isr_cause) << 2) : {stvec_q.base, 2'b00};
+        end else if (eff_supervisor) begin
+            trap_target = (stvec_q.mode == 2'b01 && eff_isr_pending) ?  // If vector mode, BASE + 4 * CAUSE
+            {stvec_q.base, 2'b00} + (32'(eff_cause) << 2) : {stvec_q.base, 2'b00};
         end else begin
-            trap_target = (mtvec_q.mode == 2'b01 && isr_pending) ?
-            {mtvec_q.base, 2'b00} + (32'(prioritised_isr_cause) << 2) : {mtvec_q.base, 2'b00};
+            trap_target = (mtvec_q.mode == 2'b01 && eff_isr_pending) ?
+            {mtvec_q.base, 2'b00} + (32'(eff_cause) << 2) : {mtvec_q.base, 2'b00};
         end
     end
 
@@ -128,9 +147,6 @@ module csr_regfile (
 
 
 
-
-    // Guards so requested trap changes are done only once.
-    logic trap_changes_committed_q;
 
     logic [31:0] m_pending, s_pending;
 
@@ -366,8 +382,10 @@ module csr_regfile (
                 12'hB02: csr_rd_data = minstret[31:0];
                 12'hB82: csr_rd_data = minstret[63:32];
                 // Unprivileged Counters
-                12'hC00, 12'hC01: csr_rd_data = mcycle[31:0];
-                12'hC80, 12'hC81: csr_rd_data = mcycle[63:32];
+                12'hC00: csr_rd_data = mcycle[31:0];
+                12'hC01: csr_rd_data = mtime[31:0];
+                12'hC80: csr_rd_data = mcycle[63:32];
+                12'hC81: csr_rd_data = mtime[63:32];
                 12'hC02: csr_rd_data = minstret[31:0];
                 12'hC82: csr_rd_data = minstret[63:32];
                 default: csr_bad = 1;
@@ -382,29 +400,32 @@ module csr_regfile (
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             // Zero all CSRs
-            mcycle <= '0;
-            minstret <= '0;
-            privilege <= M_MODE;
-            mstatus_q <= '0;
-            mstatush_q <= '0;
-            mtvec_q <= '0;
-            mie_q <= '0;
-            mip_q <= '0;
-            mepc_q <= '0;
-            mcause_q <= '0;
-            mscratch_q <= '0;
-            mcounteren_q <= '0;
-            mtval_q <= '0;
-            medeleg_q <= '0;
-            mideleg_q <= '0;
-            stvec_q <= '0;
-            scounteren_q <= '0;
-            sscratch_q <= '0;
-            sepc_q <= '0;
-            scause_q <= '0;
-            stval_q <= '0;
-            satp_q <= '0;
+            mcycle                   <= '0;
+            minstret                 <= '0;
+            privilege                <= M_MODE;
+            mstatus_q                <= '0;
+            mstatush_q               <= '0;
+            mtvec_q                  <= '0;
+            mie_q                    <= '0;
+            mip_q                    <= '0;
+            mepc_q                   <= '0;
+            mcause_q                 <= '0;
+            mscratch_q               <= '0;
+            mcounteren_q             <= '0;
+            mtval_q                  <= '0;
+            medeleg_q                <= '0;
+            mideleg_q                <= '0;
+            stvec_q                  <= '0;
+            scounteren_q             <= '0;
+            sscratch_q               <= '0;
+            sepc_q                   <= '0;
+            scause_q                 <= '0;
+            stval_q                  <= '0;
+            satp_q                   <= '0;
             trap_changes_committed_q <= 1'b0;
+            committed_supervisor_q   <= 1'b0;
+            committed_isr_pending_q  <= 1'b0;
+            committed_cause_q        <= HW_ERROR;
         end else begin
             mcycle <= mcycle + 1;
             mip_q <= mip;
@@ -415,10 +436,19 @@ module csr_regfile (
                 if (!trap_changes_committed_q) begin
                     trap_changes_committed_q <= 1;
                     if (trap_en) begin
+                        // Freeze the delivery decision the commit is about to use,
+                        // so decode's (possibly stalled) redirect to trap_target
+                        // stays consistent with the privilege/epc/cause written here.
+                        committed_supervisor_q  <= supervisor_trap;
+                        committed_isr_pending_q <= isr_pending;
+                        committed_cause_q       <= prioritised_isr_cause;
                         if (supervisor_trap) begin
                             sepc_q.pc <= trap_pc;
                             scause_q <= prioritised_isr_cause;
-                            stval_q <= trap_val;
+                            // tval is only meaningful for synchronous exceptions;
+                            // for an interrupt (isr_pending wins the cause above) it
+                            // must read 0, not the stale value left in trap_val.
+                            stval_q <= isr_pending ? '0 : trap_val;
                             mstatus_q.spie <= mstatus_q.sie;
                             mstatus_q.sie <= 1'b0;
                             mstatus_q.spp <= privilege[0];  // Can only be taken from U/S modes
@@ -426,7 +456,8 @@ module csr_regfile (
                         end else begin
                             mepc_q.pc <= trap_pc;
                             mcause_q <= mcause_t'(prioritised_isr_cause);
-                            mtval_q <= mtval_t'(trap_val);
+                            // See note above: zero tval on interrupt entry.
+                            mtval_q <= isr_pending ? '0 : mtval_t'(trap_val);
                             mstatus_q.mpie <= mstatus_q.mie;
                             mstatus_q.mie <= 1'b0;
                             mstatus_q.mpp <= privilege;

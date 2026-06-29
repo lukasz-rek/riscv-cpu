@@ -71,29 +71,4 @@ module register_file #(
             // No writes to 0
             registers[wr_addr] <= wr_data;
     end
-
-    // ─────────────────────────────────────────────────────────────────────
-    // ILA taps — cmpxchg dead-loop GPR snapshot. The lr.w/bne/sc.w loop uses
-    // a-regs/t-regs for {addr, expected, newval}; expose them so a single
-    // capture at PC 0x8000de24 reveals which operand mismatches.
-    // ─────────────────────────────────────────────────────────────────────
-    (* mark_debug = "true" *) logic [31:0] dbg_x5;   // t0
-    (* mark_debug = "true" *) logic [31:0] dbg_x6;   // t1
-    (* mark_debug = "true" *) logic [31:0] dbg_x7;   // t2
-    (* mark_debug = "true" *) logic [31:0] dbg_x10;  // a0
-    (* mark_debug = "true" *) logic [31:0] dbg_x11;  // a1 (expect ptr 0x80046048)
-    (* mark_debug = "true" *) logic [31:0] dbg_x12;  // a2
-    (* mark_debug = "true" *) logic [31:0] dbg_x13;  // a3
-    (* mark_debug = "true" *) logic [31:0] dbg_x14;  // a4
-    (* mark_debug = "true" *) logic [31:0] dbg_x15;  // a5
-
-    assign dbg_x5  = registers[5];
-    assign dbg_x6  = registers[6];
-    assign dbg_x7  = registers[7];
-    assign dbg_x10 = registers[10];
-    assign dbg_x11 = registers[11];
-    assign dbg_x12 = registers[12];
-    assign dbg_x13 = registers[13];
-    assign dbg_x14 = registers[14];
-    assign dbg_x15 = registers[15];
 endmodule

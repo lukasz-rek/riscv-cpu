@@ -454,7 +454,8 @@ module decode (
             amo_state_q <= AMO_OFF;
         end else begin
 
-            amo_state_q <= amo_state;
+            if (flush || trap_taken || isr_en || flush_latch_q) amo_state_q <= AMO_OFF;
+            else amo_state_q <= amo_state;
             // If flush asserted, save latch values
             if (flush && !isr_en) begin
                 flush_latch_q <= 1;

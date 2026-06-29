@@ -4,7 +4,7 @@
 	module CLINT #
 	(
 		// Users to add parameters here
-		
+
 		// User parameters ends
 		// Do not modify the parameters beyond this line
 
@@ -17,6 +17,7 @@
 		// Users to add ports here
 		output wire msip,
 		output wire mtip,
+		output wire [63:0] mtime,
 		// User ports ends
 		// Do not modify the ports beyond this line
 
@@ -45,7 +46,7 @@
 		input wire  s00_axi_rready
 	);
 // Instantiation of Axi Bus Interface S00_AXI
-	CLINT_slave_lite_v1_0_S00_AXI # ( 
+	CLINT_slave_lite_v1_0_S00_AXI # (
 		.C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
 		.C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
 	) CLINT_slave_lite_v1_0_S00_AXI_inst (
@@ -71,7 +72,8 @@
 		.S_AXI_RVALID(s00_axi_rvalid),
 		.S_AXI_RREADY(s00_axi_rready),
 		.msip(msip),
-		.mtip(mtip)
+		.mtip(mtip),
+		.mtime(mtime)
 	);
 
 	// Add user logic here

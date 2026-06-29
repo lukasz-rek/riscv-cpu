@@ -5,6 +5,7 @@ module top_wrapper (
     input wire msip,
     input wire meip,
     input wire seip,
+    input wire [63:0] mtime,
 
     // Flat AXI ports — BD sees these
     output wire [35:0] m_axi_awaddr,
@@ -117,7 +118,8 @@ module top_wrapper (
         .mtip (mtip),
         .msip (msip),
         .meip (meip),
-        .seip (seip)
+        .seip (seip),
+        .mtime(mtime)
     );
 
 endmodule

@@ -105,7 +105,22 @@ module exec (
 
     assign csr_addr = in_ctrl_signals.csr_addr;
     assign csr_rd_en = in_ctrl_signals.csr_rd_en && !trap_servicing && !exec_stall;
-    assign csr_wr_en = in_ctrl_signals.csr_wr_en && !trap_servicing && !exec_stall;
+    // A CSR write is an architectural side effect that must happen EXACTLY ONCE, on
+    // the cycle the instruction actually advances out of EXEC. While the instruction
+    // is HELD in EXEC by stall_D, out_ctrl_signals is held (line ~379) but csr_wr_en
+    // is an *early* combinational output — so without this gate it re-fires every held
+    // cycle. For a read-modify-swap (csrrw rd,csr,rd, the OpenSBI tp<->mscratch swap)
+    // that commits the CSR write early; the next held cycle then re-reads the
+    // already-updated mscratch_q as csr_rd_data, and that new value (not the old one)
+    // is what finally latches into rd. Result: the EXIT swap restores tp from the
+    // value it just wrote -> tp stays = sbi_scratch, clobbering the kernel current/tp.
+    // Gate ONLY on stall_D: it is a top-level input (no comb dependence on csr_wr_en).
+    // Do NOT add trap_service here — that closes a comb loop
+    // (csr_wr_en -> trap_pending -> isr_pending -> isr_en -> trap_service). freeze is
+    // redundant (decode only raises it together with stall_D). csr_rd_en is left
+    // ungated: reads have no side effect, and keeping it asserted holds trap_pending=0
+    // across the hold.
+    assign csr_wr_en = in_ctrl_signals.csr_wr_en && !trap_servicing && !exec_stall && !stall_D;
 
     assign alu_div_active = (alu_op == ALU_DIV || alu_op == ALU_DIVU || alu_op == ALU_REM || alu_op == ALU_REMU);
 
@@ -126,10 +141,10 @@ module exec (
 
     // Reservation handling   (ILA-tapped — LR/SC dead-loop debug)
     logic       [31:0] reservation_addr;
-    (* mark_debug = "true" *) logic       [31:0] reservation_addr_q;   // address LR.W reserved
-    (* mark_debug = "true" *) logic              reservation_valid_q;  // is a reservation live?
-    (* mark_debug = "true" *) logic              validate_reservation;   // LR.W set it this cycle
-    (* mark_debug = "true" *) logic              invalidate_reservation; // SC.W/trap cleared it
+    (* mark_debug = "true" *)logic       [31:0] reservation_addr_q;  // address LR.W reserved
+    (* mark_debug = "true" *)logic              reservation_valid_q;  // is a reservation live?
+    (* mark_debug = "true" *)logic              validate_reservation;  // LR.W set it this cycle
+    (* mark_debug = "true" *)logic              invalidate_reservation;  // SC.W/trap cleared it
 
 
     always_comb begin
@@ -242,6 +257,20 @@ module exec (
                             temp_signals.mem_wr_data = (temp_signals.amo_state == AMO_STORE) ? atomic_temporary_values_q[1] : rs2_data;
                             temp_signals.mem_byte_en = 4'b1111;
                         end
+                    end
+
+                    // A-ext: a store by this hart to the reserved word must
+                    // invalidate the reservation so a later SC.W correctly
+                    // fails. Previously only SC and traps cleared it, so a plain
+                    // store left a stale reservation and the next SC.W spuriously
+                    // succeeded — silently clobbering the intervening store and
+                    // corrupting spinlocks / lockref / refcounts (the fast_dput
+                    // and set_kthread_struct WARNs, and the empty-runqueue hang).
+                    // Word-granule match ([31:2]); LR/SC addresses are aligned.
+                    if (temp_signals.reservation_type != RESERVATION_STORE
+                        && reservation_valid_q && !trap_detect && !stall_D
+                        && temp_signals.mem_wr_addr[31:2] == reservation_addr_q[31:2]) begin
+                        invalidate_reservation = 1;
                     end
                 end
                 ALU_MEM_ADDR_READ: begin
@@ -364,11 +393,17 @@ module exec (
         end else begin
             if (stall_D) begin
                 out_ctrl_signals <= out_ctrl_signals;
-            end else if (freeze || trap_detect || mret_detect || trap_en || mret_en || sret_en) begin
+            end else if (freeze || trap_detect || mret_detect || trap_en || mret_en || sret_en
+                         || (trap_stall && !trap_service)) begin
                 // trap_detect/mret_detect: squash the faulting instruction itself (same
                 // cycle it is detected). trap_en/mret_en: squash the younger instruction
                 // that advanced into EXEC during the extra cycle before the (now
                 // registered) redirect takes effect.
+                // (trap_stall && !trap_service): decode is REPLAYING the instruction now in
+                // EXEC (same hold condition it uses for id_ex_ctrl). Bubble instead of
+                // advancing its result, otherwise a replayed csrrw rd,csr,rd forwards its
+                // own rd back as rs1 and writes the CSR with the old-CSR value — the
+                // tp<->mscratch swap on M-mode trap entry then no-ops, clobbering current.
                 out_ctrl_signals <= '0;
             end else begin
                 out_ctrl_signals <= temp_signals;
@@ -407,7 +442,13 @@ module exec (
             atomic_temp_valid_q <= 0;
         end else begin
             atomic_temp_q <= atomic_temp;
-            if (atomic_temporary_id != 2'd0) atomic_temp_valid_q <= 1;
+            // Clear the AMO hidden-value-valid flag on any redirect (paired with the
+            // amo_state_q -> AMO_OFF reset in decode). Otherwise a stale valid=1 left
+            // by a squashed AMO would let the restarted AMO run AMO_OP on garbage
+            // hidden data instead of re-waiting for its fresh load. Reset wins over
+            // the set so a load squashed the same cycle it reaches WB can't latch it.
+            if (trap_service || flush || trap_detect) atomic_temp_valid_q <= 0;
+            else if (atomic_temporary_id != 2'd0) atomic_temp_valid_q <= 1;
             else if (temp_signals.amo_state == AMO_MOVE_RD) atomic_temp_valid_q <= 0;
 
             if (temp_signals.amo_state == AMO_OP) begin

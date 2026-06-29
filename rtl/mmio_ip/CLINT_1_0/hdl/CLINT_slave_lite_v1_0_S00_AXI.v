@@ -17,6 +17,7 @@
 		// Users to add ports here
 		output wire msip,
 		output wire mtip,
+		output wire [63:0] mtime,
 		// User ports ends
 		// Do not modify the ports beyond this line
 
@@ -105,10 +106,11 @@
 	//------------------------------------------------
 	//-- Number of Slave Registers 5
 	reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg0;
-	reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg1;
-	reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg2;
-	reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg3;
-	reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg4;
+	// ILA taps for the timer-never-fires debug: mtimecmp vs mtime side by side.
+	(* mark_debug = "true" *) reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg1;  // mtimecmp_lo
+	(* mark_debug = "true" *) reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg2;  // mtimecmp_hi
+	(* mark_debug = "true" *) reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg3;  // mtime_lo
+	(* mark_debug = "true" *) reg [C_S_AXI_DATA_WIDTH-1:0]	slv_reg4;  // mtime_hi
 	integer	 byte_index;
 
 	localparam [C_S_AXI_ADDR_WIDTH-1:0] SLV_REG0_ADDR = 16'h0000; // MSIP
@@ -116,6 +118,8 @@
     localparam [C_S_AXI_ADDR_WIDTH-1:0] SLV_REG2_ADDR = 16'h4004; // MTIMECMP_HI
     localparam [C_S_AXI_ADDR_WIDTH-1:0] SLV_REG3_ADDR = 16'hBFF8; // MTIME_LO
     localparam [C_S_AXI_ADDR_WIDTH-1:0] SLV_REG4_ADDR = 16'hBFFC; // MTIME_HI
+
+    assign mtime = {slv_reg4, slv_reg3};
 
 	// I/O Connections assignments
 
@@ -207,7 +211,7 @@
 	// Slave register write enable is asserted when valid address and data are available
 	// and the slave is ready to accept the write address and write data.
 	reg msip_q;
-	reg mtip_q;
+	(* mark_debug = "true" *) reg mtip_q;  // ILA tap: the actual mtime>=mtimecmp result
 	assign msip = msip_q;
 	assign mtip = mtip_q;
 
